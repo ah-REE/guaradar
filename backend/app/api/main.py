@@ -154,10 +154,30 @@ app.add_middleware(
         "http://localhost:5173",
         "http://127.0.0.1:5173",
     ],
-    allow_credentials=False,      # no cookies/credentials cross-origin, by design
-    allow_methods=["GET"],        # read-only API: GET and OPTIONS only
+    # The browser talks to the Vite dev server, which proxies /api, so auth cookies are
+    # SAME-ORIGIN and CORS is not involved in the credential path at all. Credentials stay
+    # disallowed cross-origin, which removes a class of attack rather than enabling one.
+    allow_credentials=False,
+    allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
+
+
+# ---------------------------------------------------------------------------
+# Auth, SMS and admin routers
+# ---------------------------------------------------------------------------
+# These add the first mutation endpoints this API has ever had. They are safe to add ONLY
+# because each one requires a server-side session check (see app/api/auth_routes.py), which is
+# the mechanism N-2 recorded as missing.
+
+from app.api.auth_routes import admin_router, auth_router, sms_router  # noqa: E402
+from app.store import init_db as _init_store  # noqa: E402
+
+_init_store()
+
+app.include_router(auth_router)
+app.include_router(sms_router)
+app.include_router(admin_router)
 
 
 # ---------------------------------------------------------------------------

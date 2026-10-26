@@ -243,10 +243,6 @@ export const STRINGS = {
     en: 'There is no incidents table, endpoint or citizen-report channel in this build. Nothing can be listed, verified or rejected. A real queue would show clustered reports with capture time, depth band and location — none of which exists yet.',
     es: 'No hay tabla de incidentes, endpoint ni canal de reportes ciudadanos en esta versión. No se puede listar, verificar ni rechazar nada. Una cola real mostraría reportes agrupados con hora de captura, profundidad y ubicación, nada de lo cual existe todavía.',
   },
-  adminAlertsEmpty: {
-    en: 'There is no alerts table or publication endpoint. The approved flow requires bilingual content, an approval step and an append-only audit trail before an alert can reach the public — so no alert can be drafted, approved or published here.',
-    es: 'No hay tabla de alertas ni endpoint de publicación. El flujo aprobado exige contenido bilingüe, un paso de aprobación y un registro de auditoría inmutable antes de que una alerta llegue al público, por lo que aquí no se puede redactar, aprobar ni publicar ninguna.',
-  },
   adminSheltersEmpty: {
     en: 'There is no shelter register. Shelter availability is real-world information that cannot be simulated without misleading someone about where to go in a flood, so this stays empty rather than showing invented places.',
     es: 'No hay registro de refugios. La disponibilidad de refugios es información del mundo real que no se puede simular sin engañar a alguien sobre adónde ir durante una inundación, por lo que esto queda vacío en lugar de mostrar lugares inventados.',
@@ -272,6 +268,156 @@ export const STRINGS = {
   adminSampleFailed: {
     en: 'Could not sample road status. The route API did not answer, so no counts are shown rather than showing zeroes.',
     es: 'No se pudo muestrear el estado de las vías. La API de rutas no respondió, por lo que no se muestran recuentos en lugar de mostrar ceros.',
+  },
+
+  // --- M13: access, SMS consent, admin ---------------------------------
+  tabAccount: { en: 'Account', es: 'Cuenta' },
+  authTitle: { en: 'Sign in', es: 'Iniciar sesión' },
+  authSignIn: { en: 'Sign in', es: 'Iniciar sesión' },
+  authRegister: { en: 'Create account', es: 'Crear cuenta' },
+  authEmail: { en: 'Email', es: 'Correo electrónico' },
+  authPassword: { en: 'Password', es: 'Contraseña' },
+  authPasswordHint: {
+    en: 'At least 12 characters. Length matters more than symbols.',
+    es: 'Al menos 12 caracteres. La longitud importa más que los símbolos.',
+  },
+  authSignOut: { en: 'Sign out', es: 'Cerrar sesión' },
+  authSignedInAs: { en: 'Signed in as', es: 'Sesión iniciada como' },
+  authRole: { en: 'Role', es: 'Rol' },
+  authAnonymous: {
+    en: 'Browsing as a guest. Public map, forecast, sensors and routing need no account.',
+    es: 'Navegando como invitado. El mapa público, el pronóstico, los sensores y las rutas no requieren cuenta.',
+  },
+  authCreateAccountReason: {
+    en: 'An account is only needed to opt in to SMS alerts or to use the admin console.',
+    es: 'Solo se necesita una cuenta para activar las alertas por SMS o para usar la consola de administración.',
+  },
+  authNoRoleChoice: {
+    en: 'You cannot choose your own role. New accounts are always public users; administrator accounts are created by the operator on the server.',
+    es: 'No puede elegir su propio rol. Las cuentas nuevas son siempre de usuario público; las cuentas de administrador las crea el operador en el servidor.',
+  },
+  authSessionNote: {
+    en: 'Your session is held in a secure, script-inaccessible cookie and expires after 12 hours.',
+    es: 'Su sesión se guarda en una cookie segura inaccesible desde scripts y caduca a las 12 horas.',
+  },
+  smsConsentTitle: { en: 'SMS alerts', es: 'Alertas por SMS' },
+  smsConsentExplain: {
+    en: 'Register a phone number to receive flood alerts by text. This is optional and off by default. You can withdraw at any time and the number is deleted when you do.',
+    es: 'Registre un número de teléfono para recibir alertas de inundación por mensaje. Es opcional y está desactivado por defecto. Puede retirarlo en cualquier momento y el número se elimina al hacerlo.',
+  },
+  smsPhone: { en: 'Phone number', es: 'Número de teléfono' },
+  smsPhoneHint: {
+    en: 'International format, e.g. +593 99 999 9999. A number without a country code is rejected rather than guessed.',
+    es: 'Formato internacional, p. ej. +593 99 999 9999. Un número sin código de país se rechaza en lugar de adivinarse.',
+  },
+  smsOptIn: { en: 'Opt in to SMS alerts', es: 'Activar alertas por SMS' },
+  smsOptOut: { en: 'Withdraw consent', es: 'Retirar consentimiento' },
+  smsOptedIn: { en: 'Opted in', es: 'Activado' },
+  smsOptedOut: { en: 'Not opted in', es: 'No activado' },
+  smsHistory: { en: 'Consent history', es: 'Historial de consentimiento' },
+  smsHistoryEmpty: { en: 'No consent changes recorded.', es: 'No hay cambios de consentimiento registrados.' },
+  smsWithdrawNote: {
+    en: 'Withdrawing removes your number from the system, not just the flag, so it cannot be used by mistake.',
+    es: 'Retirar el consentimiento elimina su número del sistema, no solo la marca, para que no se use por error.',
+  },
+  smsDryRunBanner: {
+    en: 'SMS is in DRY-RUN mode on this deployment: no gateway credentials are configured, so nothing leaves this machine and no delivery is claimed.',
+    es: 'El SMS está en modo SIMULACIÓN en esta instalación: no hay credenciales de pasarela configuradas, por lo que nada sale de esta máquina y no se declara ninguna entrega.',
+  },
+  smsLiveBanner: {
+    en: 'Gateway credentials are configured. A message can only be delivered if a paired Android device is online.',
+    es: 'Hay credenciales de pasarela configuradas. Un mensaje solo puede entregarse si un dispositivo Android vinculado está en línea.',
+  },
+  adminLoginRequired: {
+    en: 'The admin console requires an administrator sign-in.',
+    es: 'La consola de administración requiere iniciar sesión como administrador.',
+  },
+  adminNotAuthorised: {
+    en: 'Your account does not have an administrator role. This is enforced by the server, not just hidden here.',
+    es: 'Su cuenta no tiene un rol de administrador. Esto lo aplica el servidor, no solo se oculta aquí.',
+  },
+  adminAlertsSection: { en: 'Alerts', es: 'Alertas' },
+  adminAlertsEmpty: {
+    en: 'No alerts have been drafted yet.',
+    es: 'Todavía no se ha redactado ninguna alerta.',
+  },
+  adminNewAlert: { en: 'Draft an alert', es: 'Redactar una alerta' },
+  adminAlertTitleEn: { en: 'Title (English)', es: 'Título (inglés)' },
+  adminAlertTitleEs: { en: 'Title (Spanish)', es: 'Título (español)' },
+  adminAlertBodyEn: { en: 'Message (English)', es: 'Mensaje (inglés)' },
+  adminAlertBodyEs: { en: 'Message (Spanish)', es: 'Mensaje (español)' },
+  adminAlertSeverity: { en: 'Severity', es: 'Gravedad' },
+  adminAlertArea: { en: 'Area', es: 'Zona' },
+  adminAlertSaveDraft: { en: 'Save draft', es: 'Guardar borrador' },
+  adminAlertBilingualRequired: {
+    en: 'Both languages are required. An alert cannot be published in only one language.',
+    es: 'Se requieren ambos idiomas. Una alerta no puede publicarse en un solo idioma.',
+  },
+  adminApprove: { en: 'Approve', es: 'Aprobar' },
+  adminSend: { en: 'Send', es: 'Enviar' },
+  adminSendConfirm: {
+    en: 'Send to every opted-in recipient? This cannot be undone.',
+    es: '¿Enviar a todos los destinatarios que aceptaron? Esto no se puede deshacer.',
+  },
+  adminSendConfirmYes: { en: 'Yes, send now', es: 'Sí, enviar ahora' },
+  adminCancel: { en: 'Cancel', es: 'Cancelar' },
+  adminAlertStatusDraft: { en: 'Draft', es: 'Borrador' },
+  adminAlertStatusApproved: { en: 'Approved', es: 'Aprobada' },
+  adminAlertStatusSent: { en: 'Sent', es: 'Enviada' },
+  adminAlertStatusFailed: { en: 'Failed', es: 'Fallida' },
+  adminAlertDemo: {
+    en: 'DEMO ALERT — created from simulated data, not verified emergency information.',
+    es: 'ALERTA DE DEMOSTRACIÓN — creada a partir de datos simulados, no es información de emergencia verificada.',
+  },
+  adminSodNote: {
+    en: 'The person who drafts an alert cannot approve it. That requires a second administrator with the publisher role.',
+    es: 'Quien redacta una alerta no puede aprobarla. Eso requiere un segundo administrador con el rol de publicador.',
+  },
+  adminDeliverySection: { en: 'SMS delivery', es: 'Entrega de SMS' },
+  adminDeliveryEmpty: {
+    en: 'No messages have been attempted yet.',
+    es: 'Todavía no se ha intentado ningún mensaje.',
+  },
+  adminRecipientsOptedIn: { en: 'Recipients opted in', es: 'Destinatarios que aceptaron' },
+  adminGatewayMode: { en: 'Gateway mode', es: 'Modo de pasarela' },
+  adminConfigRequired: { en: 'Configuration required', es: 'Configuración necesaria' },
+  adminConfigBody: {
+    en: 'Set these on the server and restart to enable real sending. They are never exposed to the browser.',
+    es: 'Configure estas variables en el servidor y reinicie para habilitar el envío real. Nunca se exponen al navegador.',
+  },
+  adminTestSms: { en: 'Send a test message', es: 'Enviar un mensaje de prueba' },
+  adminTestSmsTo: { en: 'Recipient number', es: 'Número de destino' },
+  adminTestSmsConfirm: {
+    en: 'I confirm I want to send a test message to this number.',
+    es: 'Confirmo que quiero enviar un mensaje de prueba a este número.',
+  },
+  adminTestSmsSend: { en: 'Send test', es: 'Enviar prueba' },
+  stateDryRun: { en: 'Dry run — not sent', es: 'Simulación — no enviado' },
+  statePending: { en: 'Queued at provider', es: 'En cola en el proveedor' },
+  stateProcessed: { en: 'Processed by device', es: 'Procesado por el dispositivo' },
+  stateSent: { en: 'Sent — not confirmed delivered', es: 'Enviado — entrega no confirmada' },
+  stateDelivered: { en: 'Delivered', es: 'Entregado' },
+  stateFailed: { en: 'Failed', es: 'Fallido' },
+  stateCancelled: { en: 'Cancelled', es: 'Cancelado' },
+  stateCancelling: { en: 'Cancelling', es: 'Cancelando' },
+  stateUnknown: { en: 'Unknown', es: 'Desconocido' },
+  adminDeliveryStateNote: {
+    en: 'Delivery states come from the SMS Gateway itself. "Sent" means the device handed the message to the network, which is not proof it reached the recipient — the provider documents that a message can stay in "Sent" even after delivery.',
+    es: 'Los estados de entrega provienen de la propia pasarela SMS. "Enviado" significa que el dispositivo entregó el mensaje a la red, lo que no prueba que llegara al destinatario: el proveedor documenta que un mensaje puede quedarse en "Enviado" incluso después de entregarse.',
+  },
+  adminClosuresTitle: { en: 'Road closures', es: 'Cierres de vías' },
+  adminIncidentsSection: { en: 'Incident reports', es: 'Reportes de incidentes' },
+  adminIncidentsNone: {
+    en: 'There is no citizen-report channel or incidents table in this build, so nothing can be listed or verified here.',
+    es: 'No hay canal de reportes ciudadanos ni tabla de incidentes en esta versión, por lo que aquí no se puede listar ni verificar nada.',
+  },
+  adminPrototypeShort: {
+    en: 'Prototype console. Every action below is authorised by the server, not by this page.',
+    es: 'Consola de prototipo. Cada acción a continuación la autoriza el servidor, no esta página.',
+  },
+  adminStorageNote: {
+    en: 'Accounts, consent, alerts and delivery logs are stored in a local SQLite file for this prototype. This is not a production database and has no row-level security.',
+    es: 'Las cuentas, el consentimiento, las alertas y los registros de entrega se guardan en un archivo SQLite local para este prototipo. No es una base de datos de producción y no tiene seguridad a nivel de fila.',
   },
 } satisfies Record<string, Pair>
 

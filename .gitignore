@@ -34,3 +34,10 @@ htmlcov/
 .vscode/
 .idea/
 /tmp/
+
+# Local prototype database (accounts, consent, alerts, delivery log).
+# NEVER commit this: it contains password hashes and phone numbers.
+guaradar.db
+guaradar.db-wal
+guaradar.db-shm
+backend/data/

@@ -33,6 +33,9 @@ import { STRINGS, type Locale, type StringKey, t, tf } from './i18n'
 import { tokens, fontStack } from './tokens'
 import RouteScreen from './RouteScreen'
 import AdminScreen from './AdminScreen'
+import AccountScreen from './AccountScreen'
+import AdminSmsConsole from './AdminSmsConsole'
+import { me as apiMe, type Session } from './authApi'
 import ErrorBoundary from './ErrorBoundary'
 
 type Loadable<T> =
@@ -482,11 +485,25 @@ const TAB_LABEL = {
   status: 'tabStatus',
   route: 'tabRoute',
   admin: 'tabAdmin',
-} as const satisfies Record<'status' | 'route' | 'admin', StringKey>
+  account: 'tabAccount',
+} as const satisfies Record<'status' | 'route' | 'admin' | 'account', StringKey>
 
 export default function App() {
   const [locale, setLocale] = useState<Locale>('en')
-  const [tab, setTab] = useState<'status' | 'route' | 'admin'>('status')
+  const [tab, setTab] = useState<'status' | 'route' | 'admin' | 'account'>('status')
+  const [session, setSession] = useState<Session | null>(null)
+  // The session is resolved from the server, never from localStorage. A forged value in
+  // devtools changes what renders, not what the server allows.
+  useEffect(() => {
+    void (async () => {
+      try {
+        setSession(await apiMe())
+      } catch {
+        setSession(null)
+      }
+    })()
+  }, [])
+
   const [forecast, setForecast] = useState<Loadable<ForecastResponse>>({ state: 'loading' })
   const [sensors, setSensors] = useState<Loadable<SensorsResponse>>({ state: 'loading' })
 
@@ -637,7 +654,7 @@ export default function App() {
           aria-label="Sections"
           style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}
         >
-          {(['status', 'route', 'admin'] as const).map((key) => (
+          {(['status', 'route', 'admin', 'account'] as const).map((key) => (
             <button
               key={key}
               type="button"
@@ -661,9 +678,32 @@ export default function App() {
           ))}
         </nav>
 
-        {tab === 'admin' ? (
+        {tab === 'account' ? (
+          <ErrorBoundary section="Account" locale={locale}>
+            <AccountScreen locale={locale} session={session} onSessionChange={setSession} />
+          </ErrorBoundary>
+        ) : tab === 'admin' ? (
           <ErrorBoundary section="Admin" locale={locale}>
-            <AdminScreen locale={locale} />
+            {/* Gating here is a convenience, not a security control: every admin endpoint
+                re-checks the role server-side and returns 403 regardless of what renders. */}
+            {session === null ? (
+              <Card title={tr('tabAdmin')} tone="warning">
+                <p style={{ margin: 0, fontSize: 13, color: tokens.warnFg, lineHeight: 1.6 }}>
+                  {tr('adminLoginRequired')}
+                </p>
+              </Card>
+            ) : session.is_admin ? (
+              <>
+                <AdminScreen locale={locale} />
+                <AdminSmsConsole locale={locale} session={session} />
+              </>
+            ) : (
+              <Card title={tr('tabAdmin')} tone="warning">
+                <p style={{ margin: 0, fontSize: 13, color: tokens.warnFg, lineHeight: 1.6 }}>
+                  {tr('adminNotAuthorised')}
+                </p>
+              </Card>
+            )}
           </ErrorBoundary>
         ) : tab === 'status' ? (
           <>

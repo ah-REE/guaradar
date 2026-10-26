@@ -130,7 +130,7 @@ def test_prototype_copy_says_nothing_can_change_public_data() -> None:
 # ===========================================================================
 
 
-@pytest.mark.parametrize("key", ["adminIncidentsEmpty", "adminAlertsEmpty", "adminSheltersEmpty"])
+@pytest.mark.parametrize("key", ["adminIncidentsEmpty", "adminSheltersEmpty"])
 def test_missing_feature_states_what_is_missing(key: str) -> None:
     en = unescape(string_block(key)).lower()
     assert "no" in en
@@ -146,8 +146,30 @@ def test_shelter_copy_refuses_to_invent_locations() -> None:
 
 
 def test_unavailable_chip_is_used_for_absent_sources() -> None:
+    """Sources that genuinely have no data are labelled unavailable.
+
+    This used to be `>= 4`, covering incidents/alerts/shelters plus the overview. Alerts now
+    EXIST (draft/approve/send plus a delivery ledger), so claiming they are unavailable would be
+    the very kind of stale disclosure this project keeps fixing. The count drops by one, and a
+    companion test asserts alerts are no longer presented as missing.
+    """
     admin = src_text("AdminScreen.tsx")
-    assert admin.count("adminNotAvailable") >= 4
+    assert admin.count("adminNotAvailable") >= 3
+    # Incidents and shelters are still genuinely absent.
+    assert "adminIncidentsTitle" in admin
+    assert "adminSheltersTitle" in admin
+
+
+def test_alerts_are_no_longer_presented_as_missing() -> None:
+    """The alert feature shipped; the panel must not still say it does not exist."""
+    admin = src_text("AdminScreen.tsx")
+    console = src_text("AdminSmsConsole.tsx")
+    # The old "no alerts table" copy must be gone from the i18n catalogue.
+    assert "no alerts table" not in src_text("i18n.ts").lower()
+    # And a real alert console must exist.
+    assert "adminAlertsSection" in admin
+    assert "createAlert" in console
+    assert "sendAlert" in console
 
 
 # ===========================================================================

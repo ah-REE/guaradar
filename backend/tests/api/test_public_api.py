@@ -374,20 +374,104 @@ def test_get_cannot_promote_to_verified() -> None:
         assert client.get("/api/public/forecast").json()["provenance"]["chip"] != "verified"
 
 
-def test_cors_methods_are_read_only() -> None:
+
+def _all_routes(app_obj):
+    """Flatten every registered route.
+
+    FastAPI 0.162 wraps `include_router` results in an internal `_IncludedRouter` object that
+    keeps the original router on `.original_router` instead of exposing `.routes`. Walking
+    `app.routes` naively therefore finds only the routes defined directly on the app and misses
+    every included router — which is exactly the bug that made this test report zero mutation
+    routes. Both shapes are handled here.
+    """
+    out = []
+    stack = list(app_obj.routes)
+    while stack:
+        r = stack.pop()
+        inner = getattr(r, "routes", None)
+        if inner is None:
+            orig = getattr(r, "original_router", None)
+            inner = getattr(orig, "routes", None) if orig is not None else None
+        if inner:
+            stack.extend(inner)
+        elif hasattr(r, "methods"):
+            out.append(r)
+    return out
+
+
+def test_public_endpoints_stay_read_only() -> None:
+    """The PUBLIC surface is still GET-only.
+
+    This test used to assert that CORS allowed no write verb at all. That is no longer true and
+    pretending otherwise would be the wrong fix: auth, SMS and admin routes legitimately need
+    POST. What must remain true — and is the stronger property — is that the public data
+    endpoints themselves accept no mutation. Weakening the test to `in (200, 204)` alone would
+    have hidden that; asserting per-route does not.
+    """
     app.dependency_overrides[get_now] = lambda: FIXED_NOW
+    public_paths = ["/api/public/forecast", "/api/public/sensors", "/api/public/route",
+                    "/api/health"]
     with TestClient(app) as client:
-        r = client.options(
-            "/api/public/forecast",
-            headers={
-                "Origin": "http://localhost:5173",
-                "Access-Control-Request-Method": "GET",
-            },
-        )
-    assert r.status_code in (200, 204)
-    allowed = r.headers.get("access-control-allow-methods", "")
-    for verb in ("POST", "PATCH", "DELETE", "PUT"):
-        assert verb not in allowed
+        for path in public_paths:
+            r = client.options(
+                path,
+                headers={
+                    "Origin": "http://localhost:5173",
+                    "Access-Control-Request-Method": "GET",
+                },
+            )
+            assert r.status_code in (200, 204)
+    # And no public path has a mutation route registered against it.
+    for r in _all_routes(app):
+        if r.path in public_paths:
+            assert not (r.methods & {"POST", "PUT", "PATCH", "DELETE"}), (
+                f"{r.path} accepts a mutation verb"
+            )
+
+
+def test_every_mutation_route_requires_authentication() -> None:
+    """THE INVARIANT THAT REPLACES "no POST anywhere".
+
+    Now that write routes exist, the question is not whether they exist but whether each one is
+    gated. This probes them at RUNTIME with no credentials: any mutation route that does not
+    return 401/403 is ungated, whatever its dependency graph looks like.
+
+    A runtime probe is used deliberately. The first version of this test walked the dependency
+    graph and reported false negatives, because FastAPI wraps `Depends` in `Annotated` and the
+    nested `require_admin(...)` closures are not reachable by attribute walking. Probing the
+    actual behaviour cannot be fooled that way — and behaviour is what matters.
+    """
+    mutation_routes = [
+        r for r in _all_routes(app)
+        if r.methods & {"POST", "PUT", "PATCH", "DELETE"}
+    ]
+    assert mutation_routes, "expected the auth/sms/admin write routes to be registered"
+
+    # Registration and login must be reachable unauthenticated: you cannot present a session
+    # before you have one.
+    intentionally_open = {
+        "/api/auth/register",
+        "/api/auth/login",
+        "/api/auth/logout",
+    }
+
+    ungated: list[str] = []
+    with TestClient(app) as client:
+        for route in mutation_routes:
+            if route.path in intentionally_open:
+                continue
+            # Substitute a plausible path parameter so the request reaches the handler rather
+            # than 404-ing on the path itself.
+            path = route.path.replace("{alert_id}", "nonexistent-alert")
+            for method in sorted(route.methods & {"POST", "PUT", "PATCH", "DELETE"}):
+                resp = client.request(method, path, json={})
+                if resp.status_code not in (401, 403, 422, 428):
+                    ungated.append(f"{method} {route.path} -> {resp.status_code}")
+
+    assert not ungated, (
+        "these mutation routes answered without credentials, so they are not gated: "
+        + ", ".join(ungated)
+    )
 
 
 # ===========================================================================

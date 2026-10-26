@@ -325,7 +325,8 @@ export default function AdminScreen({ locale }: { locale: Locale }) {
           <div>
             <dt style={dtStyle}>{tr('adminAlertsTitle')}</dt>
             <dd style={{ margin: 0 }}>
-              <Chip text={tr('adminNotAvailable')} fg={tokens.muted} bg={tokens.surfaceAlt} />
+              {/* Alerts exist as of the SMS block; the live list lives in AdminSmsConsole. */}
+              <Chip text={tr('adminAlertsSection')} fg={tokens.okFg} bg={tokens.teal50} />
             </dd>
           </div>
         </dl>
@@ -396,10 +397,6 @@ export default function AdminScreen({ locale }: { locale: Locale }) {
 
       <Panel title={tr('adminIncidentsTitle')} tone="empty">
         <EmptyState title={tr('adminNotAvailable')} body={tr('adminIncidentsEmpty')} />
-      </Panel>
-
-      <Panel title={tr('adminAlertsTitle')} tone="empty">
-        <EmptyState title={tr('adminNotAvailable')} body={tr('adminAlertsEmpty')} />
       </Panel>
 
       <Panel title={tr('adminSheltersTitle')} tone="empty">
