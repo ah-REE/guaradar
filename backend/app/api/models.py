@@ -17,7 +17,7 @@ rather than a silent data-integrity failure.
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -77,6 +77,26 @@ class HourlyRainOut(BaseModel):
     )
 
 
+class DailyRainOut(BaseModel):
+    """One calendar day of forecast.
+
+    Every numeric field is Optional and `None` means the provider omitted it. It must be
+    rendered as unavailable — never as 0 mm, which would read as "no rain expected".
+    """
+
+    date: date
+    precipitation_sum_mm: float | None = Field(
+        default=None, description="Daily total. None means the provider omitted it, not zero."
+    )
+    probability_max_pct: float | None = None
+    temperature_min_c: float | None = None
+    temperature_max_c: float | None = None
+    weather_code: int | None = Field(
+        default=None, description="WMO weather interpretation code, as published."
+    )
+    kind: Kind = "forecast"
+
+
 class ForecastOut(BaseModel):
     """The public forecast payload.
 
@@ -85,6 +105,10 @@ class ForecastOut(BaseModel):
 
     ok: bool
     hours: list[HourlyRainOut]
+    days: list[DailyRainOut] = Field(
+        default_factory=list,
+        description="Seven-day series. Empty when the provider returned no daily block.",
+    )
     total_mm: float
     max_hourly_mm: float | None
     units: str = "mm"
@@ -187,3 +211,86 @@ class HealthOut(BaseModel):
     # Measured graph facts, so the UI never has to hardcode a statistic that can drift.
     # These are counts of what is IN the extract, not a claim about city coverage.
     graph_extent: GraphExtent | None = None
+
+
+# ---------------------------------------------------------------------------
+# INAMHI official bulletin (M14)
+# ---------------------------------------------------------------------------
+
+
+class RainfallBandOut(BaseModel):
+    level: str = Field(description="Published threat level label, e.g. 'Alto'.")
+    low_mm: float | None = None
+    high_mm: float | None = None
+
+
+class RegionBandsOut(BaseModel):
+    region: str
+    bands: list[RainfallBandOut]
+
+
+class BulletinOut(BaseModel):
+    """An official INAMHI bulletin.
+
+    Deliberately NOT called a 'forecast API': there is no JSON endpoint. This is parsed from the
+    official PDF, and every field is optional because a layout change or a qualitative bulletin
+    legitimately yields no numbers.
+    """
+
+    ok: bool
+    source_url: str
+    source_name: str
+    bulletin_number: str | None = None
+    status: str | None = None
+    issued_at: datetime | None = None
+    issued_text: str | None = Field(
+        default=None, description="The document's own wording, shown when parsing is partial."
+    )
+    valid_from: datetime | None = None
+    valid_until: datetime | None = None
+    validity_text: str | None = None
+    threat_level: str | None = None
+    phenomenon: str | None = None
+    affected_regions: list[str] = Field(default_factory=list)
+    regions: list[RegionBandsOut] = Field(default_factory=list)
+    recommendations: list[str] = Field(default_factory=list)
+    is_quantitative: bool = Field(
+        default=False,
+        description="True only when numeric mm bands were published and parsed.",
+    )
+    fetched_at: datetime | None = None
+    pdf_last_modified: str | None = None
+    cached: bool = Field(default=False, description="True when served from the local cache.")
+    cache_age_s: float | None = None
+    error: str | None = None
+    warnings: list[str] = Field(default_factory=list)
+    provenance: Provenance
+
+
+class DayComparisonOut(BaseModel):
+    date: date
+    forecast_mm: float | None
+    matching_levels: list[str] = Field(
+        default_factory=list,
+        description="Published levels whose band contains the forecast value. Usually 0 or 1.",
+    )
+    published_bands: list[RainfallBandOut] = Field(default_factory=list)
+
+
+class ComparisonOut(BaseModel):
+    """The forecast-vs-bulletin comparison, with its caveats attached."""
+
+    comparable: bool
+    reason: str
+    explanation_en: str
+    explanation_es: str
+    region: str
+    days: list[DayComparisonOut] = Field(default_factory=list)
+    disclaimers_en: list[str] = Field(default_factory=list)
+    disclaimers_es: list[str] = Field(default_factory=list)
+    bulletin_source_url: str | None = None
+    bulletin_issued_at: datetime | None = None
+    bulletin_valid_from: datetime | None = None
+    bulletin_valid_until: datetime | None = None
+    notes: list[str] = Field(default_factory=list)
+    provenance: Provenance

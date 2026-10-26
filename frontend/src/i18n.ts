@@ -419,6 +419,80 @@ export const STRINGS = {
     en: 'Accounts, consent, alerts and delivery logs are stored in a local SQLite file for this prototype. This is not a production database and has no row-level security.',
     es: 'Las cuentas, el consentimiento, las alertas y los registros de entrega se guardan en un archivo SQLite local para este prototipo. No es una base de datos de producción y no tiene seguridad a nivel de fila.',
   },
+
+  // --- M14: seven-day forecast, INAMHI bulletin, comparison ------------
+  weekTitle: { en: 'Seven-day rainfall forecast', es: 'Pronóstico de lluvia a siete días' },
+  weekChartHeading: { en: 'Daily rainfall, next seven days', es: 'Lluvia diaria, próximos siete días' },
+  weekCardsHeading: { en: 'Daily detail', es: 'Detalle diario' },
+  weekUnavailable: {
+    en: 'The provider returned no daily series, so the seven-day view is not shown.',
+    es: 'El proveedor no devolvió una serie diaria, por lo que no se muestra la vista de siete días.',
+  },
+  next24Title: { en: 'Hourly rainfall, next 24 hours', es: 'Lluvia horaria, próximas 24 horas' },
+  dayRain: { en: 'Rain', es: 'Lluvia' },
+  dayProbability: { en: 'Max probability', es: 'Probabilidad máxima' },
+  dayTemp: { en: 'Temperature', es: 'Temperatura' },
+  dayWeather: { en: 'Sky', es: 'Cielo' },
+  dayUnavailable: { en: 'unavailable', es: 'no disponible' },
+  chartNoData: {
+    en: 'No values to plot. The provider omitted them; nothing was filled in.',
+    es: 'No hay valores que graficar. El proveedor los omitió; no se rellenó nada.',
+  },
+  chartLabel: {
+    en: 'Bar chart of daily rainfall in millimetres',
+    es: 'Gráfico de barras de lluvia diaria en milímetros',
+  },
+  hourlyChartLabel: {
+    en: 'Bar chart of hourly rainfall in millimetres for the next 24 hours',
+    es: 'Gráfico de barras de lluvia horaria en milímetros para las próximas 24 horas',
+  },
+  bulletinTitle: { en: 'INAMHI official bulletin', es: 'Boletín oficial del INAMHI' },
+  bulletinLoading: { en: 'Reading the official bulletin…', es: 'Leyendo el boletín oficial…' },
+  bulletinUnavailable: {
+    en: 'The official INAMHI bulletin could not be read. Open the official source to see it directly — no values are shown in its place.',
+    es: 'No se pudo leer el boletín oficial del INAMHI. Abra la fuente oficial para verlo directamente: no se muestran valores en su lugar.',
+  },
+  bulletinOpenOfficial: { en: 'Open the official document', es: 'Abrir el documento oficial' },
+  bulletinNumber: { en: 'Bulletin', es: 'Boletín' },
+  bulletinStatus: { en: 'Status', es: 'Estatus' },
+  bulletinIssued: { en: 'Issued', es: 'Emitido' },
+  bulletinValid: { en: 'Valid', es: 'Vigencia' },
+  bulletinThreat: { en: 'Threat level', es: 'Nivel de amenaza' },
+  bulletinPhenomenon: { en: 'Phenomenon', es: 'Fenómeno' },
+  bulletinRegions: { en: 'Regions named', es: 'Regiones mencionadas' },
+  bulletinBands: {
+    en: 'Published 24-hour rainfall bands (mm/24h)',
+    es: 'Rangos de lluvia publicados en 24 horas (mm/24h)',
+  },
+  bulletinBandsNote: {
+    en: 'These are regional bands published by INAMHI, not a forecast for any single point.',
+    es: 'Son rangos regionales publicados por el INAMHI, no un pronóstico para un punto concreto.',
+  },
+  bulletinQualitative: {
+    en: 'This bulletin publishes no numeric rainfall table, so it is shown as an official statement rather than as numbers.',
+    es: 'Este boletín no publica una tabla numérica de lluvia, por lo que se muestra como una declaración oficial en lugar de como cifras.',
+  },
+  bulletinCached: { en: 'from cache', es: 'desde caché' },
+  bulletinRecommendations: { en: 'What may happen', es: 'Qué puede pasar' },
+  comparisonTitle: { en: 'Forecast vs INAMHI bulletin', es: 'Pronóstico frente al boletín del INAMHI' },
+  comparisonRefused: {
+    en: 'No comparison is shown.',
+    es: 'No se muestra ninguna comparación.',
+  },
+  comparisonInside: { en: 'inside band', es: 'dentro del rango' },
+  comparisonOutside: { en: 'outside every published band', es: 'fuera de todos los rangos publicados' },
+  comparisonCaveats: { en: 'Read before interpreting', es: 'Leer antes de interpretar' },
+  comparisonModelRow: { en: 'Model (point)', es: 'Modelo (punto)' },
+  comparisonBulletinRow: { en: 'INAMHI (region)', es: 'INAMHI (región)' },
+  forecastNotFloodWarning: {
+    en: 'Rainfall is not a flood prediction. These numbers describe expected precipitation at a location; they say nothing about water depth on any particular road.',
+    es: 'La lluvia no es una predicción de inundación. Estas cifras describen la precipitación prevista en un lugar; no dicen nada sobre la profundidad del agua en una vía concreta.',
+  },
+  forecastNoRiskScore: {
+    en: 'No flood-risk score is calculated from rainfall alone.',
+    es: 'No se calcula ninguna puntuación de riesgo de inundación solo a partir de la lluvia.',
+  },
+  officialLinksTitle: { en: 'Official INAMHI sources', es: 'Fuentes oficiales del INAMHI' },
 } satisfies Record<string, Pair>
 
 export type StringKey = keyof typeof STRINGS

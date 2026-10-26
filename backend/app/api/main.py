@@ -30,9 +30,12 @@ from fastapi import status as http_status
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.models import (
+    BulletinOut,
+    ComparisonOut,
     GraphExtent,
     ForecastOut,
     HealthOut,
+    DailyRainOut,
     HourlyRainOut,
     Provenance,
     SensorOut,
@@ -171,6 +174,14 @@ app.add_middleware(
 # the mechanism N-2 recorded as missing.
 
 from app.api.auth_routes import admin_router, auth_router, sms_router  # noqa: E402
+from app.api.bulletin_routes import (  # noqa: E402
+    build_comparison_out,
+    get_bulletin,
+    official_links,
+    to_bulletin_out,
+)
+from app.ingest.inamhi import ADVERTENCIA_PDF, PORTAL_ALERTAS, PORTAL_BOLETINES, PORTAL_PRONOSTICO  # noqa: E402
+from app.ingest.comparison import GUAYAQUIL_REGION  # noqa: E402
 from app.store import init_db as _init_store  # noqa: E402
 
 _init_store()
@@ -302,6 +313,7 @@ def public_forecast(
         "longitude": lon,
         "now": now,
         "forecast_hours": hours,
+        "forecast_days": 7,
     }
     if http_get is not None:
         kwargs["http_get"] = http_get
@@ -337,6 +349,18 @@ def public_forecast(
 
     return ForecastOut(
         ok=result.ok,
+        days=[
+            DailyRainOut(
+                date=d.date,
+                precipitation_sum_mm=d.precipitation_sum_mm,
+                probability_max_pct=d.probability_max_pct,
+                temperature_min_c=d.temperature_min_c,
+                temperature_max_c=d.temperature_max_c,
+                weather_code=d.weather_code,
+                kind=d.kind,
+            )
+            for d in result.days
+        ],
         hours=[
             HourlyRainOut(
                 at=h.at,
@@ -835,3 +859,91 @@ def public_route(
         status_profile=profile,
         profile_is_demo_fixture=(profile == "demo_clear"),
     )
+
+
+# ---------------------------------------------------------------------------
+# INAMHI official bulletin (M14)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/api/public/bulletin", response_model=BulletinOut, tags=["public"])
+def public_bulletin(
+    refresh: bool = Query(
+        default=False,
+        description="Bypass the 15-minute cache and re-fetch the official PDF.",
+    ),
+    now: datetime = Depends(get_now),
+) -> BulletinOut:
+    """The current official INAMHI advisory.
+
+    There is no INAMHI JSON API: this is parsed from the official PDF. On failure the response
+    carries `ok=false`, a specific reason, and the official `source_url` so the user can read the
+    document directly. No values are invented to fill the gap.
+    """
+    bulletin, cached, age = get_bulletin(ADVERTENCIA_PDF, now, force=refresh)
+    return to_bulletin_out(bulletin, cached, age)
+
+
+@app.get("/api/public/comparison", response_model=ComparisonOut, tags=["public"])
+def public_comparison(
+    sector: str = Query(default="centro"),
+    region: str = Query(
+        default=GUAYAQUIL_REGION,
+        description="INAMHI region to compare against. Guayaquil is in Litoral.",
+    ),
+    now: datetime = Depends(get_now),
+    http_get: Callable[[str, float], tuple[int, str]] | None = Depends(get_http_get),
+) -> ComparisonOut:
+    """Compare the point forecast against INAMHI's published regional bands.
+
+    This is NOT a cross-verification. Both series are forecasts, the spatial and temporal units
+    differ, and the payload says so in both languages on every response.
+    """
+    if sector not in DEMO_SECTOR_CENTRES:
+        raise HTTPException(
+            status_code=http_status.HTTP_404_NOT_FOUND,
+            detail=f"unknown sector {sector!r}; known: {sorted(DEMO_SECTOR_CENTRES)}",
+        )
+    lat, lon = DEMO_SECTOR_CENTRES[sector]
+
+    kwargs: dict = {
+        "base_url": OPEN_METEO_BASE_URL,
+        "latitude": lat,
+        "longitude": lon,
+        "now": now,
+        "forecast_hours": 24,
+        "forecast_days": 7,
+    }
+    if http_get is not None:
+        kwargs["http_get"] = http_get
+    result = fetch_forecast(**kwargs)
+
+    bulletin, cached, age = get_bulletin(ADVERTENCIA_PDF, now)
+
+    chip = "estimated" if result.ok else "no_data"
+    provenance = Provenance(
+        chip=chip,
+        fetched_at=result.fetched_at,
+        stale_after_s=FORECAST_STALE_AFTER_S,
+        simulated=False,
+        data_mode=data_mode(external_live=result.ok, any_simulated=True),
+        sources=[
+            SourceRef(name=result.source, model_run_at=result.model_run_at),
+            SourceRef(name="INAMHI official bulletin", model_run_at=None),
+        ],
+        notes=[
+            "Two forecasts compared; neither is an observation.",
+            "No percentage difference is computed between a point forecast and a regional band.",
+            "INAMHI read from its official PDF; no INAMHI JSON API exists.",
+        ]
+        + ([f"bulletin served from cache, {age:.0f}s old"] if cached else [])
+        + ([result.error] if result.error else []),
+    )
+
+    return build_comparison_out(result.days, bulletin, region=region, provenance=provenance)
+
+
+@app.get("/api/public/official-links", tags=["public"])
+def public_official_links() -> dict:
+    """Official INAMHI entry points, so the UI links to the authority rather than paraphrasing."""
+    return official_links()

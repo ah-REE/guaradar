@@ -35,6 +35,8 @@ import RouteScreen from './RouteScreen'
 import AdminScreen from './AdminScreen'
 import AccountScreen from './AccountScreen'
 import AdminSmsConsole from './AdminSmsConsole'
+import { Next24hSection, SevenDaySection } from './ForecastWeek'
+import { BulletinPanel, ComparisonPanel, ForecastSafetyNotes } from './BulletinPanel'
 import { me as apiMe, type Session } from './authApi'
 import ErrorBoundary from './ErrorBoundary'
 
@@ -707,9 +709,41 @@ export default function App() {
           </ErrorBoundary>
         ) : tab === 'status' ? (
           <>
+            {/* Rainfall is not a flood prediction; stated before any number is read. */}
+            <ForecastSafetyNotes locale={locale} />
+
             <ErrorBoundary section={locale === 'es' ? 'pronóstico' : 'forecast'} locale={locale}>
               <ForecastSection load={forecast} locale={locale} />
             </ErrorBoundary>
+
+            <ErrorBoundary
+              section={locale === 'es' ? 'siete días' : 'seven day'}
+              locale={locale}
+            >
+              <Card title={tr('weekTitle')}>
+                {forecast.state === 'ready' ? (
+                  <>
+                    <SevenDaySection days={forecast.data.days ?? []} locale={locale} />
+                    <div style={{ marginTop: 18 }}>
+                      <Next24hSection hours={forecast.data.hours} locale={locale} />
+                    </div>
+                  </>
+                ) : (
+                  <p role="status" style={{ margin: 0, fontSize: 13, color: tokens.muted }}>
+                    {forecast.state === 'loading' ? tr('loading') : tr('forecastUnavailable')}
+                  </p>
+                )}
+              </Card>
+            </ErrorBoundary>
+
+            <ErrorBoundary section="INAMHI" locale={locale}>
+              <BulletinPanel locale={locale} />
+            </ErrorBoundary>
+
+            <ErrorBoundary section="comparison" locale={locale}>
+              <ComparisonPanel locale={locale} />
+            </ErrorBoundary>
+
             <ErrorBoundary section={locale === 'es' ? 'sensores' : 'sensors'} locale={locale}>
               <SensorsSection load={sensors} locale={locale} />
             </ErrorBoundary>

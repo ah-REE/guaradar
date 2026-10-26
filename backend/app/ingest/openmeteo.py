@@ -26,7 +26,7 @@ from __future__ import annotations
 
 import json
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from typing import Any, Callable, Iterable, Literal, Sequence
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlencode
@@ -35,6 +35,23 @@ from urllib.request import urlopen
 # The provider's variable names. Kept as constants so a rename is a one-line change.
 VAR_PRECIPITATION = "precipitation"
 VAR_PROBABILITY = "precipitation_probability"
+
+# Daily aggregates (M14). Names match Open-Meteo's daily API exactly; a typo here would
+# silently return a missing series, so each is validated after parsing.
+VAR_DAILY_PRECIP_SUM = "precipitation_sum"
+VAR_DAILY_PROB_MAX = "precipitation_probability_max"
+VAR_DAILY_TMIN = "temperature_2m_min"
+VAR_DAILY_TMAX = "temperature_2m_max"
+VAR_DAILY_WCODE = "weather_code"
+DAILY_VARS = (
+    VAR_DAILY_PRECIP_SUM,
+    VAR_DAILY_PROB_MAX,
+    VAR_DAILY_TMIN,
+    VAR_DAILY_TMAX,
+    VAR_DAILY_WCODE,
+)
+# Open-Meteo allows 16 days; seven is what the UI shows and what was asked for.
+MAX_DAILY_DAYS = 16
 
 ACCEPTED_UNITS_PRECIP = {"mm": 1.0, "inch": 25.4, "inches": 25.4}
 
@@ -69,6 +86,26 @@ class HourlyRain:
 
 
 @dataclass(frozen=True)
+class DailyRain:
+    """One calendar day of forecast, as the provider reports it.
+
+    `date` is a plain `date`, not a datetime: a daily aggregate covers a whole day, and
+    turning it into an instant would invent a precision the provider never claimed.
+
+    Every value is Optional. `None` means **the provider did not supply it**, which is not
+    the same as zero rain or zero probability, and the UI must render it as unavailable.
+    """
+
+    date: date
+    precipitation_sum_mm: float | None
+    probability_max_pct: float | None
+    temperature_min_c: float | None
+    temperature_max_c: float | None
+    weather_code: int | None
+    kind: Kind = "forecast"
+
+
+@dataclass(frozen=True)
 class ForecastResult:
     """The adapter's whole answer, including failures and provenance.
 
@@ -86,6 +123,8 @@ class ForecastResult:
     longitude: float | None
     error: str | None = None
     notes: tuple[str, ...] = field(default_factory=tuple)
+    # Daily series. Empty when the provider was not asked for daily data, or on failure.
+    days: tuple[DailyRain, ...] = field(default_factory=tuple)
 
     @property
     def total_mm(self) -> float:
@@ -280,9 +319,12 @@ def parse_open_meteo(
         "provider response includes no model run time; only the fetch time is known"
     )
 
+    days = _parse_daily(payload, notes)
+
     return ForecastResult(
         ok=True,
         hours=tuple(hours),
+        days=days,
         source="open-meteo",
         provider_units_original=orig_unit,
         model_run_at=None,
@@ -292,6 +334,115 @@ def parse_open_meteo(
         error=None,
         notes=tuple(notes),
     )
+
+
+
+def _parse_daily(
+    payload: dict, notes: list[str]
+) -> tuple[DailyRain, ...]:
+    """Parse the daily block. Missing series yield None, never a fabricated zero.
+
+    Deliberate behaviours, each guarding a specific way this could mislead:
+
+    * A **missing daily block entirely** is not an error — an hourly-only response is still a
+      valid forecast. It yields an empty tuple and a note, so the UI can hide the 7-day view
+      rather than show blanks or invented numbers.
+    * A **missing individual value** (provider returns `null`) becomes None. Rendering that as
+      0 mm would turn "the model has no answer" into "it will not rain", which is precisely the
+      false reassurance this project forbids.
+    * A **length mismatch** between the date series and a value series is reported and the
+      shorter length is used, with a note. Silently zipping would misalign dates against the
+      wrong days — a subtle, serious error in a forecast.
+    * Units are checked. A non-mm precipitation unit aborts rather than being assumed.
+    """
+    daily = payload.get("daily")
+    if not isinstance(daily, dict):
+        notes.append("provider returned no daily block; the 7-day view is unavailable")
+        return ()
+
+    dates = daily.get("time")
+    if not isinstance(dates, list) or not dates:
+        notes.append("daily.time missing or empty; the 7-day view is unavailable")
+        return ()
+
+    units = payload.get("daily_units") or {}
+    if not isinstance(units, dict):
+        units = {}
+
+    precip_unit = units.get(VAR_DAILY_PRECIP_SUM)
+    if precip_unit is not None and precip_unit.lower() not in ("mm", "millimetres", "millimeters"):
+        raise ForecastError(
+            f"unsupported daily precipitation unit {precip_unit!r}; refusing to assume mm"
+        )
+
+    def series(key: str, expected_len: int) -> list[Any]:
+        raw = daily.get(key)
+        if not isinstance(raw, list):
+            notes.append(f"daily.{key} absent from the response")
+            return [None] * expected_len
+        if len(raw) != expected_len:
+            notes.append(
+                f"daily.{key} has {len(raw)} values for {expected_len} dates; "
+                "values are aligned positionally and the missing tail is left unavailable"
+            )
+            # Pad rather than truncate. Truncating would silently drop days; returning the short
+            # list raised IndexError below. Padding keeps each value on the day it belongs to and
+            # makes the missing tail explicitly None.
+            raw = list(raw[:expected_len]) + [None] * (expected_len - len(raw))
+        return raw
+
+    n = len(dates)
+    precip = series(VAR_DAILY_PRECIP_SUM, n)
+    prob = series(VAR_DAILY_PROB_MAX, n)
+    tmin = series(VAR_DAILY_TMIN, n)
+    tmax = series(VAR_DAILY_TMAX, n)
+    wcode = series(VAR_DAILY_WCODE, n)
+
+    def num(v: Any) -> float | None:
+        if v is None or isinstance(v, bool):
+            return None
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return None
+        # NaN / infinity are not "no data" — they are corrupt, and must not be rendered.
+        if f != f or f in (float("inf"), float("-inf")):
+            return None
+        return f
+
+    out: list[DailyRain] = []
+    for i in range(n):
+        try:
+            d = date.fromisoformat(str(dates[i]))
+        except (TypeError, ValueError):
+            notes.append(f"unparseable daily date {dates[i]!r} skipped")
+            continue
+
+        p = num(precip[i])
+        if p is not None and p < 0:
+            # Negative rainfall is physically impossible; treat as absent rather than clamp to 0,
+            # because clamping would hide a provider fault.
+            notes.append(f"negative daily precipitation {p} on {d} treated as unavailable")
+            p = None
+
+        prob_i = num(prob[i])
+        if prob_i is not None and not 0 <= prob_i <= 100:
+            notes.append(f"daily probability {prob_i} on {d} outside 0..100 treated as unavailable")
+            prob_i = None
+
+        out.append(
+            DailyRain(
+                date=d,
+                precipitation_sum_mm=round(p, 2) if p is not None else None,
+                probability_max_pct=round(prob_i, 0) if prob_i is not None else None,
+                temperature_min_c=num(tmin[i]),
+                temperature_max_c=num(tmax[i]),
+                weather_code=int(wcode[i]) if isinstance(wcode[i], (int, float)) else None,
+            )
+        )
+
+    return tuple(out)
+
 
 
 def _validate_probabilities(values: Sequence[Any]) -> tuple[list[float | None], tuple[str, ...]]:
@@ -327,6 +478,7 @@ def build_forecast_url(
     longitude: float,
     *,
     forecast_hours: int = 48,
+    forecast_days: int = 7,
 ) -> str:
     """Construct the request URL.
 
@@ -339,11 +491,17 @@ def build_forecast_url(
         raise ValueError("longitude out of range")
     if not 1 <= forecast_hours <= MAX_FORECAST_HOURS:
         raise ValueError(f"forecast_hours must be within 1..{MAX_FORECAST_HOURS}")
+    if not 1 <= forecast_days <= MAX_DAILY_DAYS:
+        raise ValueError(f"forecast_days must be within 1..{MAX_DAILY_DAYS}")
+    # `forecast_days` and `forecast_hours` are both accepted by Open-Meteo; requesting days
+    # covers the 7-day view while the hourly series serves the next-24h chart.
     params = {
         "latitude": f"{latitude:.6f}",
         "longitude": f"{longitude:.6f}",
         "hourly": f"{VAR_PRECIPITATION},{VAR_PROBABILITY}",
+        "daily": ",".join(DAILY_VARS),
         "forecast_hours": str(forecast_hours),
+        "forecast_days": str(forecast_days),
         "timezone": "UTC",
     }
     return f"{base_url.rstrip('/')}/forecast?{urlencode(params)}"
@@ -357,6 +515,7 @@ def fetch_forecast(
     now: datetime,
     http_get: HttpGet = urllib_get,
     forecast_hours: int = 48,
+    forecast_days: int = 7,
     timeout_s: float = DEFAULT_TIMEOUT_S,
 ) -> ForecastResult:
     """Fetch and parse a rainfall forecast. Never raises for provider failure.
@@ -365,7 +524,10 @@ def fetch_forecast(
     caller decides whether to show cached data or nothing; this adapter never invents mm.
     """
     try:
-        url = build_forecast_url(base_url, latitude, longitude, forecast_hours=forecast_hours)
+        url = build_forecast_url(
+            base_url, latitude, longitude,
+            forecast_hours=forecast_hours, forecast_days=forecast_days,
+        )
     except ValueError as exc:
         return _failure(str(exc), latitude, longitude, now, "invalid request parameters")
 

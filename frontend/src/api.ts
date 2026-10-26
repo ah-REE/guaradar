@@ -37,8 +37,20 @@ export interface HourlyRain {
   kind: 'forecast' | 'observation'
 }
 
+export interface DailyRain {
+  date: string
+  /** null = the provider omitted it. NOT zero. Render as unavailable. */
+  precipitation_sum_mm: number | null
+  probability_max_pct: number | null
+  temperature_min_c: number | null
+  temperature_max_c: number | null
+  weather_code: number | null
+  kind: 'forecast'
+}
+
 export interface ForecastResponse {
   ok: boolean
+  days: DailyRain[]
   hours: HourlyRain[]
   total_mm: number
   max_hourly_mm: number | null
