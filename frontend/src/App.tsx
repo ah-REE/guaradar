@@ -32,9 +32,12 @@ import {
 import { STRINGS, type Locale, type StringKey, t, tf } from './i18n'
 import { tokens, fontStack } from './tokens'
 import RouteScreen from './RouteScreen'
+import ReportScreen from './ReportScreen'
+import AdminReports from './AdminReports'
 import AdminScreen from './AdminScreen'
 import AccountScreen from './AccountScreen'
 import AdminSmsConsole from './AdminSmsConsole'
+import AdminAccounts from './AdminAccounts'
 import { Next24hSection, SevenDaySection } from './ForecastWeek'
 import { BulletinPanel, ComparisonPanel, ForecastSafetyNotes } from './BulletinPanel'
 import { me as apiMe, type Session } from './authApi'
@@ -486,13 +489,16 @@ function LimitationsSection({ locale }: { locale: Locale }) {
 const TAB_LABEL = {
   status: 'tabStatus',
   route: 'tabRoute',
+  report: 'tabReport',
   admin: 'tabAdmin',
   account: 'tabAccount',
-} as const satisfies Record<'status' | 'route' | 'admin' | 'account', StringKey>
+} as const satisfies Record<'status' | 'route' | 'report' | 'admin' | 'account', StringKey>
+
+type Tab = keyof typeof TAB_LABEL
 
 export default function App() {
   const [locale, setLocale] = useState<Locale>('en')
-  const [tab, setTab] = useState<'status' | 'route' | 'admin' | 'account'>('status')
+  const [tab, setTab] = useState<Tab>('status')
   const [session, setSession] = useState<Session | null>(null)
   // The session is resolved from the server, never from localStorage. A forged value in
   // devtools changes what renders, not what the server allows.
@@ -656,7 +662,7 @@ export default function App() {
           aria-label="Sections"
           style={{ display: 'flex', gap: 8, marginBottom: 16, flexWrap: 'wrap' }}
         >
-          {(['status', 'route', 'admin', 'account'] as const).map((key) => (
+          {(['status', 'route', 'report', 'admin', 'account'] as const).map((key) => (
             <button
               key={key}
               type="button"
@@ -696,8 +702,15 @@ export default function App() {
               </Card>
             ) : session.is_admin ? (
               <>
-                <AdminScreen locale={locale} />
                 <AdminSmsConsole locale={locale} session={session} />
+                {/* Account administration. Creating an administrator is impossible here by
+                    design: only the bootstrap CLI can, so the highest role never becomes
+                    reachable from a web session. */}
+                <AdminAccounts locale={locale} session={session} />
+                {/* Report review needs at least `viewer`; the panel renders decisions only for
+                    `operator` and above, and the server enforces the same rule. */}
+                <AdminReports locale={locale} session={session} />
+                <AdminScreen locale={locale} />
               </>
             ) : (
               <Card title={tr('tabAdmin')} tone="warning">
@@ -706,6 +719,10 @@ export default function App() {
                 </p>
               </Card>
             )}
+          </ErrorBoundary>
+        ) : tab === 'report' ? (
+          <ErrorBoundary section={locale === 'es' ? 'Reportar' : 'Report'} locale={locale}>
+            <ReportScreen locale={locale} session={session} />
           </ErrorBoundary>
         ) : tab === 'status' ? (
           <>

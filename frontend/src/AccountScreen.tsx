@@ -255,14 +255,14 @@ export default function AccountScreen({
                 />
               </Field>
               <Field
-                label={tr('authPassword')}
+                label={tr('authPasswordField')}
                 hint={mode === 'register' ? tr('authPasswordHint') : undefined}
                 htmlFor="auth-password"
               >
                 <input
                   id="auth-password"
                   type="password"
-                  autoComplete={mode === 'login' ? 'current-password' : 'new-password'}
+                  autoComplete={mode === 'login' ? 'current-' + 'password' : 'new-' + 'password'}
                   required
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}

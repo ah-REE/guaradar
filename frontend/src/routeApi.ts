@@ -68,6 +68,12 @@ export interface RouteResponse {
   profile_is_demo_fixture?: boolean
   status_source?: string
   status_records_matched?: number
+  // Community-report overlay. Optional because an older server omits them; absent must render
+  // as "unknown", never as "no reports" — the two mean different things.
+  report_overlay_applied?: boolean
+  report_segments_affected?: number
+  report_closures?: number
+  report_stale_closures?: number
 }
 
 export class RouteError extends Error {

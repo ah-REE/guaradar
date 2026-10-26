@@ -116,13 +116,43 @@ def test_panel_states_it_is_an_unauthorised_prototype() -> None:
         assert dismissive not in banner, "the prototype banner must not be dismissible"
 
 
-def test_prototype_copy_says_nothing_can_change_public_data() -> None:
+def test_prototype_copy_states_its_real_limits_not_its_old_ones() -> None:
+    """UPDATED 2026-10-26, because the old copy became FALSE.
+
+    It used to assert the banner said "no write action is available", "nothing here can change
+    public data" and "authentication is not implemented". All three shipped afterwards: M13 added
+    server-side auth and M15 added road-report decisions that change the status used for routing.
+    Keeping the old wording would have been the exact stale-disclosure defect this project has
+    already had to fix twice (the "50 km" figure and the "routing not exposed" line).
+
+    The assertion is inverted rather than deleted: the banner must now ADMIT that actions change
+    data, must still refuse to present itself as the real city system, and must still never call
+    itself authorised when the session is not.
+    """
     en = unescape(string_block("adminPrototypeBody")).lower()
-    assert "no write action is available" in en
-    assert "nothing here can change public data" in en
-    assert "not implemented" in en
-    # Must not claim to be an operational console.
-    assert "do not treat this screen as an operational console" in en
+    # It must warn that writes happen now.
+    assert "do change data" in en or "do change" in en
+    assert "audit" in en
+    # It must still not claim to be an operational city system.
+    assert "do not treat it as the city operating system" in en
+    # And the stale claims must be GONE.
+    for stale in ("no write action is available", "nothing here can change public data",
+                  "authentication is not implemented"):
+        assert stale not in en, f"stale disclosure returned: {stale}"
+
+
+def test_banner_no_longer_claims_the_session_is_unauthorised() -> None:
+    """The badge itself must reflect that a role is enforced, not that nobody is authorised."""
+    en = unescape(string_block("adminPrototype")).lower()
+    assert "sin autorización" not in en and "not authorised" not in en
+    assert "session" in en or "autorizada" in en
+
+
+def test_roles_are_no_longer_described_as_unenforced() -> None:
+    """`adminRolesBody` claimed roles were defined but not enforced. They are enforced now."""
+    en = unescape(string_block("adminRolesBody")).lower()
+    assert "not enforced" not in en
+    assert "server" in en and ("enforced" in en or "applies" in en or "applied" in en)
 
 
 # ===========================================================================
@@ -132,10 +162,25 @@ def test_prototype_copy_says_nothing_can_change_public_data() -> None:
 
 @pytest.mark.parametrize("key", ["adminIncidentsEmpty", "adminSheltersEmpty"])
 def test_missing_feature_states_what_is_missing(key: str) -> None:
+    """Missing features must name a real absent component, not hedge vaguely.
+
+    UPDATED 2026-10-26. `adminIncidentsEmpty` used to pass on the word "table" because its copy
+    said no incidents table existed. Road reports shipped, so that sentence is now FALSE and the
+    copy was corrected to name what is genuinely still absent (clustering, depth band,
+    account-free submission). The assertion is strengthened rather than dropped: it now requires
+    the sentence to describe the gap in terms a reader can act on.
+    """
     en = unescape(string_block(key)).lower()
     assert "no" in en
-    # Each must explain absence in terms of a real missing component, not vague hedging.
-    assert any(w in en for w in ("table", "endpoint", "register", "channel"))
+    if key == "adminIncidentsEmpty":
+        # The citizen-report channel now exists; the remaining absence is specific.
+        assert "does not exist" in en
+        assert any(w in en for w in ("clustering", "depth band", "without an account"))
+        # And it must no longer claim there is no report channel at all.
+        assert "citizen-report channel" not in en
+        assert "no incidents table" not in en
+    else:
+        assert any(w in en for w in ("table", "endpoint", "register", "channel"))
 
 
 def test_shelter_copy_refuses_to_invent_locations() -> None:
@@ -236,10 +281,21 @@ def test_admin_strings_complete_in_both_locales() -> None:
 
 
 def test_admin_tab_is_reachable_from_navigation() -> None:
+    """The admin tab must be in the nav list, in order, with a label and a panel.
+
+    UPDATED 2026-10-26: a `report` tab was inserted between `route` and `admin`, so the old
+    literal-adjacency check failed for a correct reason. Asserting the ORDER rather than one
+    exact string keeps the original intent — admin reachable from the nav — without breaking
+    every time a tab is added.
+    """
     app = src_text("App.tsx")
-    assert "'status', 'route', 'admin'" in app, "the admin tab must be in the nav map"
+    order = ["'status'", "'route'", "'report'", "'admin'", "'account'"]
+    positions = [app.find(tok) for tok in order]
+    assert all(p >= 0 for p in positions), f"missing nav entries: {dict(zip(order, positions))}"
+    assert positions == sorted(positions), "nav entries must be declared in display order"
     assert "AdminScreen" in app
     assert "TAB_LABEL" in app
+    assert "ReportScreen" in app
 
 
 def test_admin_is_wrapped_in_the_error_boundary() -> None:

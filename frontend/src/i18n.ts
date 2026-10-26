@@ -209,13 +209,17 @@ export const STRINGS = {
   tabRoute: { en: 'Route', es: 'Ruta' },
   tabAdmin: { en: 'Admin', es: 'Administración' },
   adminTitle: { en: 'Admin control centre', es: 'Centro de control de administración' },
+  // CORRECTED 2026-10-26. The banner used to read "PROTOTYPE — NOT AUTHORISED" and claim that
+  // authentication was not implemented and that no write action existed. Both statements became
+  // FALSE when server-side auth shipped (M13) and road-report decisions shipped (M15). Leaving
+  // them would teach operators to distrust the panel that now genuinely works.
   adminPrototype: {
-    en: 'PROTOTYPE — NOT AUTHORISED',
-    es: 'PROTOTIPO — SIN AUTORIZACIÓN',
+    en: 'PROTOTYPE — AUTHORISED SESSION',
+    es: 'PROTOTIPO — SESIÓN AUTORIZADA',
   },
   adminPrototypeBody: {
-    en: 'This panel is a read-only prototype. Authentication is not implemented and no write action is available, so nothing here can change public data. Every control that would write is disabled and says why. Do not treat this screen as an operational console.',
-    es: 'Este panel es un prototipo de solo lectura. La autenticación no está implementada y ninguna acción de escritura está disponible, por lo que nada aquí puede cambiar datos públicos. Cada control que escribiría está deshabilitado y explica por qué. No trate esta pantalla como una consola operativa.',
+    en: 'You are signed in with a real role, checked by the server on every action. Some actions DO change data: verifying a road report changes the road status used for routing, and account changes take effect immediately. Everything you do is recorded in an audit log. This remains a prototype on prototype data — do not treat it as the city operating system.',
+    es: 'Has iniciado sesión con un rol real, verificado por el servidor en cada acción. Algunas acciones SÍ cambian datos: verificar un reporte de vía cambia el estado usado para el enrutamiento, y los cambios de cuenta se aplican de inmediato. Todo lo que hagas queda registrado en una auditoría. Sigue siendo un prototipo con datos de prototipo: no lo trates como el sistema operativo de la ciudad.',
   },
   adminOverviewTitle: { en: 'Overview', es: 'Resumen' },
   adminRoadStatusTitle: { en: 'Road status sample', es: 'Muestra de estado de vías' },
@@ -239,9 +243,13 @@ export const STRINGS = {
   adminAlertsTitle: { en: 'Alert management', es: 'Gestión de alertas' },
   adminSheltersTitle: { en: 'Shelter availability', es: 'Disponibilidad de refugios' },
   adminNotAvailable: { en: 'No data source exists', es: 'No existe fuente de datos' },
+  // CORRECTED 2026-10-26. The previous adminIncidentsEmpty copy said there was no citizen-report
+  // channel, no endpoint and no table. Road reports now exist, so that sentence became false —
+  // the same class of stale disclosure this project has had to fix twice before (the "50 km"
+  // figure and the "routing not exposed" line). The remaining absence is narrow and exact.
   adminIncidentsEmpty: {
-    en: 'There is no incidents table, endpoint or citizen-report channel in this build. Nothing can be listed, verified or rejected. A real queue would show clustered reports with capture time, depth band and location — none of which exists yet.',
-    es: 'No hay tabla de incidentes, endpoint ni canal de reportes ciudadanos en esta versión. No se puede listar, verificar ni rechazar nada. Una cola real mostraría reportes agrupados con hora de captura, profundidad y ubicación, nada de lo cual existe todavía.',
+    en: 'Citizen road reports are reviewed in the panel below. What still does not exist: clustering of nearby reports into one incident, water-depth band estimation, and submission without an account. Those are not shown rather than simulated.',
+    es: 'Los reportes ciudadanos de vías se revisan en el panel inferior. Lo que todavía no existe: agrupar reportes cercanos en un solo incidente, estimar la franja de profundidad del agua y el envío sin cuenta. No se muestran en lugar de simularse.',
   },
   adminSheltersEmpty: {
     en: 'There is no shelter register. Shelter availability is real-world information that cannot be simulated without misleading someone about where to go in a flood, so this stays empty rather than showing invented places.',
@@ -253,10 +261,10 @@ export const STRINGS = {
     es: 'Cada acción se muestra deshabilitada con su motivo, en lugar de ocultarse o simularse. Un control que parece funcionar y no hace nada es peor que uno honestamente deshabilitado.',
   },
   adminDisabled: { en: 'Disabled', es: 'Deshabilitado' },
-  adminRolesTitle: { en: 'Roles defined but not enforced', es: 'Roles definidos pero no aplicados' },
+  adminRolesTitle: { en: 'Roles and what they allow', es: 'Roles y lo que permiten' },
   adminRolesBody: {
-    en: 'Viewer, Operator, Publisher and Admin were approved. None is enforced, because there is no server-side identity check (N-2). Showing a role selector would imply access control that does not exist.',
-    es: 'Se aprobaron Lector, Operador, Publicador y Administrador. Ninguno se aplica, porque no hay verificación de identidad en el servidor (N-2). Mostrar un selector de rol implicaría un control de acceso que no existe.',
+    en: 'Viewer, Operator, Publisher and Admin are enforced server-side on every request. A hidden button is not the control: the API rejects an action the role is not permitted, so disabling a tab in the browser changes nothing. Roles cannot be changed after an account is created.',
+    es: 'Lector, Operador, Publicador y Administrador se aplican en el servidor en cada solicitud. Un botón oculto no es el control: la API rechaza una acción que el rol no permite, así que deshabilitar una pestaña en el navegador no cambia nada. Los roles no se pueden cambiar después de crear la cuenta.',
   },
   adminDataMode: { en: 'Data mode', es: 'Modo de datos' },
   adminMixedExplain: {
@@ -276,7 +284,7 @@ export const STRINGS = {
   authSignIn: { en: 'Sign in', es: 'Iniciar sesión' },
   authRegister: { en: 'Create account', es: 'Crear cuenta' },
   authEmail: { en: 'Email', es: 'Correo electrónico' },
-  authPassword: { en: 'Password', es: 'Contraseña' },
+  authPasswordField: { en: 'Password', es: 'Contraseña' },
   authPasswordHint: {
     en: 'At least 12 characters. Length matters more than symbols.',
     es: 'Al menos 12 caracteres. La longitud importa más que los símbolos.',
@@ -493,6 +501,330 @@ export const STRINGS = {
     es: 'No se calcula ninguna puntuación de riesgo de inundación solo a partir de la lluvia.',
   },
   officialLinksTitle: { en: 'Official INAMHI sources', es: 'Fuentes oficiales del INAMHI' },
+
+  // --- M15: community road reports (features A–E) -----------------------
+  // Authored in English first per the project language rule, then translated. Every string
+  // that touches safety is phrased as evidence, never as a verdict.
+  tabReport: { en: 'Report', es: 'Reportar' },
+  reportTitle: { en: 'Report a road condition', es: 'Reportar el estado de una vía' },
+  reportIntro: {
+    en: 'Tell other people what you can see. A report is evidence, not a road-status decision: an operator decides whether a road is closed.',
+    es: 'Cuéntale a otras personas lo que puedes ver. Un reporte es evidencia, no una decisión sobre el estado de la vía: un operador decide si una vía está cerrada.',
+  },
+  reportSignInRequired: {
+    en: 'Sign in to submit a report. Your email is never shown publicly — only the road and the photo.',
+    es: 'Inicia sesión para enviar un reporte. Tu correo nunca se muestra públicamente: solo la vía y la foto.',
+  },
+  reportPhotoTitle: { en: '1. Photo', es: '1. Foto' },
+  reportTakePhoto: { en: 'Take a photo', es: 'Tomar una foto' },
+  reportChoosePhoto: { en: 'Choose an existing photo', es: 'Elegir una foto existente' },
+  reportPhotoHint: {
+    en: 'JPEG, PNG or WebP, up to 5 MB. The image is resized and its embedded location data is removed before it is published.',
+    es: 'JPEG, PNG o WebP, hasta 5 MB. La imagen se redimensiona y se eliminan sus datos de ubicación antes de publicarla.',
+  },
+  reportPhotoCameraUnavailable: {
+    en: 'Camera capture is not available in this browser. Choose a photo instead.',
+    es: 'La captura con cámara no está disponible en este navegador. Elige una foto en su lugar.',
+  },
+  reportPhotoRequired: { en: 'A photo is required for a report.', es: 'Se requiere una foto para el reporte.' },
+  reportPhotoTooLarge: {
+    en: 'That photo is larger than the 5 MB limit. Choose a smaller one.',
+    es: 'Esa foto supera el límite de 5 MB. Elige una más pequeña.',
+  },
+  reportPhotoRejected: {
+    en: 'That file could not be used as a photo. Try a JPEG, PNG or WebP image.',
+    es: 'Ese archivo no se pudo usar como foto. Prueba con una imagen JPEG, PNG o WebP.',
+  },
+  reportLocationTitle: { en: '2. Location', es: '2. Ubicación' },
+  reportUseMyLocation: { en: 'Use my current location', es: 'Usar mi ubicación actual' },
+  reportLocationHint: {
+    en: 'Location is requested only when you press the button. It is not tracked in the background.',
+    es: 'La ubicación se solicita solo cuando presionas el botón. No se rastrea en segundo plano.',
+  },
+  reportLocationDenied: {
+    en: 'Location permission was denied. You can place the pin on the map yourself.',
+    es: 'Se denegó el permiso de ubicación. Puedes colocar el marcador en el mapa tú mismo.',
+  },
+  reportLocationUnavailable: {
+    en: 'Your position could not be determined. Place the pin on the map instead.',
+    es: 'No se pudo determinar tu posición. Coloca el marcador en el mapa en su lugar.',
+  },
+  reportLocationGetting: { en: 'Getting your location…', es: 'Obteniendo tu ubicación…' },
+  reportAccuracy: { en: 'Accuracy', es: 'Precisión' },
+  reportAccuracyPoor: {
+    en: 'Your GPS accuracy is poor, so the road could not be matched automatically. Adjust the pin or try again outdoors.',
+    es: 'La precisión de tu GPS es baja, por lo que no se pudo asociar la vía automáticamente. Ajusta el marcador o inténtalo de nuevo al aire libre.',
+  },
+  reportPinInstruction: {
+    en: 'Tap the map to move the pin so it sits on the road you are reporting.',
+    es: 'Toca el mapa para mover el marcador y situarlo sobre la vía que estás reportando.',
+  },
+  reportMatchedRoad: { en: 'Matched road segment', es: 'Tramo de vía asociado' },
+  reportNotMatched: {
+    en: 'Not matched to a road. The report will be shown as a nearby hazard but cannot change any road status.',
+    es: 'No se asoció a una vía. El reporte se mostrará como un peligro cercano, pero no puede cambiar el estado de ninguna vía.',
+  },
+  reportCategoryTitle: { en: '3. What do you see?', es: '3. ¿Qué ves?' },
+  reportCategoryFlooded: { en: 'Flooded road', es: 'Vía inundada' },
+  reportCategoryBlocked: { en: 'Road completely blocked', es: 'Vía completamente bloqueada' },
+  reportCategoryDebris: { en: 'Debris or fallen objects', es: 'Escombros u objetos caídos' },
+  reportCategoryDamaged: { en: 'Damaged road', es: 'Vía dañada' },
+  reportCategoryRising: { en: 'Water level rising', es: 'Nivel del agua subiendo' },
+  reportCategoryOther: { en: 'Other road hazard', es: 'Otro peligro en la vía' },
+  reportDescription: { en: 'Description (optional)', es: 'Descripción (opcional)' },
+  reportDescriptionHint: {
+    en: 'Up to 280 characters. Do not include names, phone numbers or addresses.',
+    es: 'Hasta 280 caracteres. No incluyas nombres, teléfonos ni direcciones.',
+  },
+  reportSubmit: { en: 'Submit report', es: 'Enviar reporte' },
+  reportSubmitting: { en: 'Submitting…', es: 'Enviando…' },
+  reportSubmitted: {
+    en: 'Report submitted as UNVERIFIED. Other people can now see it and confirm what they see.',
+    es: 'Reporte enviado como NO VERIFICADO. Otras personas ya pueden verlo y confirmar lo que observan.',
+  },
+  reportSubmitFailed: {
+    en: 'The report was not saved. Nothing was recorded; please try again.',
+    es: 'El reporte no se guardó. No se registró nada; inténtalo de nuevo.',
+  },
+  reportRateLimited: {
+    en: 'You have submitted several reports recently. Please wait before sending another.',
+    es: 'Has enviado varios reportes recientemente. Espera antes de enviar otro.',
+  },
+  reportPrivacyTitle: { en: 'What is published', es: 'Qué se publica' },
+  reportPrivacyBody: {
+    en: 'Published: the photo, the road or nearby area, the category and your description. Not published: your email, your account identity, or your exact standing position. When the pin matches a road, the road position is shown instead of yours.',
+    es: 'Se publica: la foto, la vía o la zona cercana, la categoría y tu descripción. No se publica: tu correo, la identidad de tu cuenta ni tu posición exacta. Cuando el marcador coincide con una vía, se muestra la posición de la vía en lugar de la tuya.',
+  },
+  reportMapTitle: { en: 'Recent reports', es: 'Reportes recientes' },
+  reportMapEmpty: {
+    en: 'No reports yet. An empty list does not mean the roads are clear — nobody has reported anything.',
+    es: 'Todavía no hay reportes. Una lista vacía no significa que las vías estén despejadas: nadie ha reportado nada.',
+  },
+  reportMapFailed: {
+    en: 'Reports could not be loaded. This is a data problem, not an all-clear.',
+    es: 'No se pudieron cargar los reportes. Es un problema de datos, no una señal de que todo esté despejado.',
+  },
+  reportStatusUnverified: { en: 'Unverified report', es: 'Reporte no verificado' },
+  reportStatusPotential: { en: 'Potential hazard', es: 'Peligro potencial' },
+  reportStatusBlocked: { en: 'Blocked — verified', es: 'Bloqueada — verificada' },
+  reportStatusPassable: { en: 'Passable — verified', es: 'Transitable — verificada' },
+  reportStatusInconclusive: { en: 'Inconclusive', es: 'No concluyente' },
+  reportStatusRejected: { en: 'Rejected', es: 'Rechazado' },
+  reportStatusStale: { en: 'Stale — needs re-check', es: 'Desactualizado — requiere revisión' },
+  reportStatusUnknown: { en: 'Unknown', es: 'Desconocido' },
+  reportStatusLegend: {
+    en: 'Unverified means nobody has checked. Verified means an operator recorded a decision. Stale means the evidence is older than the freshness window — it is NOT a statement that the road is passable.',
+    es: 'No verificado significa que nadie lo ha comprobado. Verificado significa que un operador registró una decisión. Desactualizado significa que la evidencia es más antigua que la ventana de vigencia: NO es una afirmación de que la vía sea transitable.',
+  },
+  reportReportedAt: { en: 'Reported', es: 'Reportado' },
+  reportVerifiedAt: { en: 'Last verified', es: 'Última verificación' },
+  reportExpiresAt: { en: 'Fresh until', es: 'Vigente hasta' },
+  reportStaleNote: {
+    en: 'This evidence has expired. Conditions may have changed and it is not proof that the road is passable.',
+    es: 'Esta evidencia ha caducado. Las condiciones pueden haber cambiado y no es prueba de que la vía sea transitable.',
+  },
+  reportConfirmStillThere: { en: 'Still there', es: 'Sigue allí' },
+  reportConfirmImproved: { en: 'Looks improved', es: 'Parece mejor' },
+  reportConfirmations: { en: 'Community confirmations', es: 'Confirmaciones de la comunidad' },
+  reportChallenges: { en: 'Improved reports', es: 'Reportes de mejora' },
+  reportConfirmRecorded: {
+    en: 'Recorded. This adds evidence and does not change the road status by itself.',
+    es: 'Registrado. Esto añade evidencia y no cambia el estado de la vía por sí solo.',
+  },
+  reportAlreadyConfirmed: {
+    en: 'You have already responded to this report.',
+    es: 'Ya has respondido a este reporte.',
+  },
+  reportConfirmFailed: {
+    en: 'Your response was not recorded. Please try again.',
+    es: 'Tu respuesta no se registró. Inténtalo de nuevo.',
+  },
+  reportPhotoAlt: { en: 'Photo submitted with this road report', es: 'Foto enviada con este reporte de vía' },
+  reportNoPhoto: { en: 'No photo', es: 'Sin foto' },
+  reportSeededBadge: {
+    en: 'Demo fixture — not a real submission',
+    es: 'Datos de demostración — no es un envío real',
+  },
+  reportNearbyTitle: { en: 'Reports near you', es: 'Reportes cerca de ti' },
+
+  // --- admin: report review ---------------------------------------------
+  adminReportsTitle: { en: 'Road report review', es: 'Revisión de reportes de vías' },
+  adminReportsExplain: {
+    en: 'Reports arrive unverified. A decision here changes the road status used by routing, so it is recorded with your role and timestamp in an append-only history.',
+    es: 'Los reportes llegan sin verificar. Una decisión aquí cambia el estado de la vía que usa el enrutamiento, por lo que se registra con tu rol y hora en un historial de solo adición.',
+  },
+  adminReportsEmpty: {
+    en: 'No reports are waiting for review.',
+    es: 'No hay reportes esperando revisión.',
+  },
+  adminReportsFailed: {
+    en: 'The report queue could not be loaded. No decisions are available while it is unavailable.',
+    es: 'No se pudo cargar la cola de reportes. No hay decisiones disponibles mientras no esté disponible.',
+  },
+  adminReportsNeedRole: {
+    en: 'Reviewing reports requires an operator account. This panel is read-only without one.',
+    es: 'Revisar reportes requiere una cuenta de operador. Sin ella, este panel es de solo lectura.',
+  },
+  adminReportAccuracy: { en: 'GPS accuracy', es: 'Precisión del GPS' },
+  adminReportSource: { en: 'Position source', es: 'Origen de la posición' },
+  adminReportSnapDistance: { en: 'Distance to road', es: 'Distancia a la vía' },
+  adminReportSegment: { en: 'Road segment', es: 'Tramo de vía' },
+  adminReportHistory: { en: 'Status history', es: 'Historial de estado' },
+  adminReportNoHistory: { en: 'No recorded changes yet.', es: 'Aún no hay cambios registrados.' },
+  adminDecisionVerifyBlocked: { en: 'Verify as blocked', es: 'Verificar como bloqueada' },
+  adminDecisionVerifyPassable: { en: 'Verify as passable', es: 'Verificar como transitable' },
+  adminDecisionPotential: { en: 'Mark potential hazard', es: 'Marcar peligro potencial' },
+  adminDecisionInconclusive: { en: 'Mark inconclusive', es: 'Marcar no concluyente' },
+  adminDecisionReject: { en: 'Reject report', es: 'Rechazar reporte' },
+  adminDecisionNote: { en: 'Decision note (optional)', es: 'Nota de la decisión (opcional)' },
+  adminDecisionSaved: {
+    en: 'Decision recorded. The road status used by routing has been updated.',
+    es: 'Decisión registrada. Se actualizó el estado de la vía que usa el enrutamiento.',
+  },
+  adminDecisionFailed: {
+    en: 'The decision was not saved. Nothing was changed; please try again.',
+    es: 'La decisión no se guardó. No se cambió nada; inténtalo de nuevo.',
+  },
+  adminDecisionNeedsOperator: {
+    en: 'Only an operator can record a decision. Your current role can view reports but not decide them.',
+    es: 'Solo un operador puede registrar una decisión. Tu rol actual puede ver reportes pero no decidirlos.',
+  },
+  adminReportSeeded: {
+    en: 'This is a demo fixture, not a citizen submission.',
+    es: 'Estos son datos de demostración, no un envío ciudadano.',
+  },
+  adminUnverifiedIsNotClosure: {
+    en: 'An unverified report is evidence only. It cannot close a road until an operator verifies it.',
+    es: 'Un reporte no verificado es solo evidencia. No puede cerrar una vía hasta que un operador lo verifique.',
+  },
+  adminConflictsTitle: { en: 'Conflicting reports', es: 'Reportes contradictorios' },
+  adminConflictsBody: {
+    en: 'Where verified reports disagree, the higher-risk reading is used for routing and both are kept. Nothing is averaged away.',
+    es: 'Cuando los reportes verificados se contradicen, se usa la lectura de mayor riesgo para el enrutamiento y se conservan ambos. Nada se promedia.',
+  },
+
+  // --- routing: current location ----------------------------------------
+  routeOriginTitle: { en: 'Starting point', es: 'Punto de partida' },
+  routeUseMyLocation: { en: 'Use my current location', es: 'Usar mi ubicación actual' },
+  routeLocationGetting: { en: 'Getting your location…', es: 'Obteniendo tu ubicación…' },
+  routeLocationDenied: {
+    en: 'Location permission was denied. Choose a starting point from the list instead.',
+    es: 'Se denegó el permiso de ubicación. Elige un punto de partida de la lista en su lugar.',
+  },
+  routeLocationUnavailable: {
+    en: 'Your position could not be determined. Choose a starting point from the list instead.',
+    es: 'No se pudo determinar tu posición. Elige un punto de partida de la lista en su lugar.',
+  },
+  routeOriginFromGps: {
+    en: 'Origin: your current position, snapped to the nearest road.',
+    es: 'Origen: tu posición actual, ajustada a la vía más cercana.',
+  },
+  routeOriginOffNetwork: {
+    en: 'Your position is too far from this road network to start a route. Choose a starting point from the list.',
+    es: 'Tu posición está demasiado lejos de esta red de vías para iniciar una ruta. Elige un punto de partida de la lista.',
+  },
+  routeReportsInfluence: {
+    en: 'Community reports affected the road status used for this search.',
+    es: 'Los reportes de la comunidad afectaron el estado de las vías usado en esta búsqueda.',
+  },
+  routeReportsNone: {
+    en: 'No community report affected this search. That is not evidence the roads are clear.',
+    es: 'Ningún reporte de la comunidad afectó esta búsqueda. Eso no es evidencia de que las vías estén despejadas.',
+  },
+
+  // --- M16: staff account administration --------------------------------
+  // Authoring rule: these describe PERMISSIONS, so each says what a role can do rather than
+  // ranking it ("higher"/"lower"). A reader deciding what to grant needs the capability, not a
+  // hierarchy diagram.
+  acctTitle: { en: 'Staff accounts', es: 'Cuentas del personal' },
+  acctExplain: {
+    en: 'Create and manage the accounts used by city staff. Roles are fixed when an account is created and cannot be changed afterwards, so there is no way for an account to gain more access than it was granted.',
+    es: 'Crea y gestiona las cuentas del personal municipal. Los roles se fijan al crear la cuenta y no se pueden cambiar después, por lo que ninguna cuenta puede obtener más acceso del que se le concedió.',
+  },
+  acctLoading: { en: 'Loading accounts…', es: 'Cargando cuentas…' },
+  acctLoadFailed: {
+    en: 'The account list could not be loaded. No accounts are shown rather than showing a stale list.',
+    es: 'No se pudo cargar la lista de cuentas. No se muestran cuentas en lugar de mostrar una lista desactualizada.',
+  },
+  acctNeedRole: {
+    en: 'Managing accounts requires an operator account or above.',
+    es: 'Gestionar cuentas requiere una cuenta de operador o superior.',
+  },
+  acctCreateTitle: { en: 'Create an account', es: 'Crear una cuenta' },
+  acctEmailLabel: { en: 'Email', es: 'Correo electrónico' },
+  acctPassphraseLabel: { en: 'Initial passphrase', es: 'Frase de acceso inicial' },
+  acctPassphraseHint: {
+    en: 'At least 12 characters. Length matters more than symbols. It is stored only as a hash and is never shown again — record it before you leave this screen.',
+    es: 'Al menos 12 caracteres. La longitud importa más que los símbolos. Se guarda solo como hash y nunca se vuelve a mostrar: anótala antes de salir de esta pantalla.',
+  },
+  acctRoleLabel: { en: 'Role', es: 'Rol' },
+  acctCreateButton: { en: 'Create account', es: 'Crear cuenta' },
+  acctWorking: { en: 'Working…', es: 'Procesando…' },
+  acctCreated: {
+    en: 'Account created. Give the passphrase to that person directly; it cannot be displayed again.',
+    es: 'Cuenta creada. Entrega la frase de acceso a esa persona directamente; no se puede volver a mostrar.',
+  },
+  acctCreateFailed: {
+    en: 'The account was not created. Nothing was saved; please try again.',
+    es: 'La cuenta no se creó. No se guardó nada; inténtalo de nuevo.',
+  },
+  acctUpdated: { en: 'Account updated.', es: 'Cuenta actualizada.' },
+  acctUpdateFailed: {
+    en: 'That change was not saved. Nothing was modified; please try again.',
+    es: 'Ese cambio no se guardó. No se modificó nada; inténtalo de nuevo.',
+  },
+  acctValidationFailed: {
+    en: 'Check the details: the email must be valid and the passphrase at least 12 characters. If the email is already registered, choose another.',
+    es: 'Revisa los datos: el correo debe ser válido y la frase de acceso de al menos 12 caracteres. Si el correo ya está registrado, elige otro.',
+  },
+  acctCannotGrant: {
+    en: 'You cannot grant that role. You may only grant roles below your own; creating an administrator is possible only from the server command line.',
+    es: 'No puedes conceder ese rol. Solo puedes conceder roles inferiores al tuyo; crear un administrador solo es posible desde la línea de comandos del servidor.',
+  },
+  acctCannotManage: {
+    en: 'You cannot manage that account: its role is above your own.',
+    es: 'No puedes gestionar esa cuenta: su rol es superior al tuyo.',
+  },
+  acctLastAdmin: {
+    en: 'This is the last enabled administrator. Disabling it would leave nobody able to manage accounts, so it is refused. Create another administrator from the command line first.',
+    es: 'Este es el último administrador habilitado. Deshabilitarlo dejaría a nadie capaz de gestionar cuentas, por lo que se rechaza. Crea primero otro administrador desde la línea de comandos.',
+  },
+  acctBootstrapOnly: {
+    en: 'Administrator accounts cannot be created here. Only the server command line can create one, which keeps the highest role out of reach of a web session entirely.',
+    es: 'Las cuentas de administrador no se pueden crear aquí. Solo la línea de comandos del servidor puede crear una, lo que mantiene el rol más alto fuera del alcance de una sesión web.',
+  },
+  acctNoGrantable: {
+    en: 'Your role cannot grant any role. This panel is read-only for you.',
+    es: 'Tu rol no puede conceder ningún rol. Este panel es de solo lectura para ti.',
+  },
+  acctExistingTitle: { en: 'Existing accounts', es: 'Cuentas existentes' },
+  acctEmpty: { en: 'No accounts yet.', es: 'Aún no hay cuentas.' },
+  acctCreatedLabel: { en: 'Created', es: 'Creada' },
+  acctLastActiveLabel: { en: 'Last sign-in', es: 'Último acceso' },
+  acctStateLabel: { en: 'State', es: 'Estado' },
+  acctActionsLabel: { en: 'Actions', es: 'Acciones' },
+  acctActive: { en: 'Active', es: 'Activa' },
+  acctDisabled: { en: 'Disabled', es: 'Deshabilitada' },
+  acctDisabledCount: { en: 'Disabled', es: 'Deshabilitadas' },
+  acctEnable: { en: 'Enable', es: 'Habilitar' },
+  acctDisable: { en: 'Disable', es: 'Deshabilitar' },
+  acctThisIsYou: { en: 'This is you', es: 'Esta eres tú' },
+  acctResetPassphrase: { en: 'Reset passphrase', es: 'Restablecer frase' },
+  acctNewPassphraseLabel: { en: 'New passphrase', es: 'Nueva frase de acceso' },
+  acctConfirmReset: { en: 'Set passphrase', es: 'Establecer frase' },
+  acctPassphraseReset: {
+    en: 'Passphrase replaced and every existing session for that account was signed out.',
+    es: 'Frase de acceso reemplazada y todas las sesiones existentes de esa cuenta fueron cerradas.',
+  },
+  acctRoleViewer: { en: 'Viewer', es: 'Lector' },
+  acctRoleOperator: { en: 'Operator', es: 'Operador' },
+  acctRolePublisher: { en: 'Publisher', es: 'Publicador' },
+  acctRoleAdmin: { en: 'Administrator', es: 'Administrador' },
+  acctRolePublic: { en: 'Citizen', es: 'Ciudadano' },
+  acctRoleWhatViewer: { en: 'can read panels, cannot change anything', es: 'puede leer paneles, no puede cambiar nada' },
+  acctRoleWhatOperator: { en: 'can verify and reject road reports', es: 'puede verificar y rechazar reportes de vías' },
+  acctRoleWhatPublisher: { en: 'can approve and send public alerts', es: 'puede aprobar y enviar alertas públicas' },
+  acctRoleWhatAdmin: { en: 'full access, including accounts', es: 'acceso total, incluidas las cuentas' },
 } satisfies Record<string, Pair>
 
 export type StringKey = keyof typeof STRINGS

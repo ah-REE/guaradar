@@ -22,6 +22,7 @@ export const tokens = {
   warnFg: '#C2410C',
   dangerBg: '#FEE2E2',
   dangerFg: '#B91C1C',
+  okBg: '#DCFCE7',
   okFg: '#15803D',
   simBg: '#FFF7ED',
   simFg: '#9A3412',

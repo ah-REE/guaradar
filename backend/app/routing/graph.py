@@ -382,6 +382,29 @@ class StatusIndex:
         """
         return self.status_of(edge_id) == STATUS_CLOSED
 
+    def edges_with_records(self) -> tuple[int, ...]:
+        """Every edge id that has an explicit record.
+
+        Exists so a caller can build a superset index (for example, one that merges citizen
+        reports over seeded status) WITHOUT reaching into `_by_edge`. Reading a private
+        attribute from another module works until the representation changes, and then fails
+        silently in whichever caller nobody re-ran.
+        """
+        return tuple(self._by_edge.keys())
+
+    def record_for(self, edge_id: int) -> EdgeStatus | None:
+        """The raw record for one edge, or None. Same rationale as `edges_with_records`."""
+        return self._by_edge.get(edge_id)
+
+    def freshness_window(self) -> timedelta:
+        """The freshness budget this index was built with.
+
+        Exposed so a caller constructing a merged index can preserve the original policy
+        instead of assuming `DEFAULT_FRESHNESS` — which would silently widen or narrow
+        staleness whenever the caller's window differed from the default.
+        """
+        return self._freshness
+
     def cost_factor(self, edge_id: int) -> float:
         """§9 step 2. Closed is never costed here — it is excluded before costing."""
         s = self._by_edge.get(edge_id)

@@ -156,6 +156,134 @@ create table if not exists audit_log (
     at          text not null
 );
 create index if not exists audit_at_idx on audit_log (at);
+
+-- ===========================================================================
+-- Community road reports (features A-E)
+--
+-- STATUS MODEL — read this before changing anything here.
+--
+--   `decision` stores ONLY what an operator decided, or that nobody has decided.
+--   `stale` is DELIBERATELY NOT a stored value. It is derived from `expires_at` at read
+--   time (see app/reports/lifecycle.py). That is what makes requirement D.3 structural
+--   rather than a rule somebody has to remember:
+--
+--     "Expiration must never automatically turn a blocked road into a confirmed safe road."
+--
+--   If `stale` were a stored status, a timer or a cron job would have to rewrite `decision`
+--   from 'blocked_verified' to something else, and every such rewrite is an opportunity to
+--   write 'passable'. Deriving staleness instead means an expired closure still closes its
+--   edge; it loses only its freshness claim. The two are different questions and they are
+--   answered in different places on purpose.
+--
+-- LOCATION PRIVACY
+--   `gps_lat`/`gps_lon` are the submitter's raw coordinates and are ADMIN-ONLY. The public
+--   endpoints never read them. `public_lat`/`public_lon` are the snapped road point when the
+--   report matched a segment, otherwise a deliberately coarsened (rounded) coordinate. Keeping
+--   both columns means the raw position is available for review without ever being served.
+-- ===========================================================================
+create table if not exists road_reports (
+    id                text primary key,
+    user_id           text not null references users(id) on delete cascade,
+    category          text not null check (category in (
+                          'flooded', 'blocked', 'debris', 'damaged', 'rising', 'other')),
+    description       text,
+    -- Raw submitter position. Never served on a public endpoint.
+    gps_lat           real not null check (gps_lat between -90 and 90),
+    gps_lon           real not null check (gps_lon between -180 and 180),
+    gps_accuracy_m    real check (gps_accuracy_m is null or gps_accuracy_m >= 0),
+    gps_source        text not null check (gps_source in ('device', 'manual', 'map')),
+    -- Snapping result. NULL edge_id means the pin was too far from any road; that is
+    -- recorded honestly rather than assigning the nearest road anyway.
+    road_segment_id   integer,
+    snap_distance_m   real check (snap_distance_m is null or snap_distance_m >= 0),
+    -- What the public map may show.
+    public_lat        real not null check (public_lat between -90 and 90),
+    public_lon        real not null check (public_lon between -180 and 180),
+    public_is_snapped integer not null default 0 check (public_is_snapped in (0, 1)),
+    -- Operator decision. 'unverified' is the only value a submitter can produce.
+    decision          text not null default 'unverified' check (decision in (
+                          'unverified', 'potential_hazard', 'blocked_verified',
+                          'passable_verified', 'inconclusive', 'rejected')),
+    decided_by        text references users(id),
+    decided_at        text,
+    decision_note     text,
+    -- Lifecycle timestamps, all UTC.
+    submitted_at      text not null,
+    verified_at       text,
+    last_confirmed_at text,
+    -- Freshness deadline. The ONLY source of staleness; there is no `stale` column.
+    expires_at        text not null,
+    -- Stale-threshold minutes in force when the row was written, so a later policy change
+    -- cannot silently reinterpret a historical deadline.
+    stale_after_minutes integer not null check (stale_after_minutes > 0),
+    seeded            integer not null default 0 check (seeded in (0, 1)),
+    -- Admin decision must be attributable.
+    constraint report_decision_needs_actor check (
+        decision = 'unverified' or (decided_by is not null and decided_at is not null))
+);
+create index if not exists reports_segment_idx on road_reports (road_segment_id);
+create index if not exists reports_decision_idx on road_reports (decision, submitted_at desc);
+create index if not exists reports_time_idx on road_reports (submitted_at desc);
+create index if not exists reports_bbox_idx on road_reports (public_lat, public_lon);
+create index if not exists reports_user_idx on road_reports (user_id, submitted_at desc);
+create index if not exists reports_expiry_idx on road_reports (expires_at);
+
+-- One sanitised image per report. Bytes live here rather than on disk because the intended
+-- deployment (Render free web service) has an EPHEMERAL filesystem. Storage in the database
+-- survives a restart; a file under /tmp or ./uploads does not.
+--
+-- This is NOT durable on Render while the runtime database is SQLite, because that SQLite
+-- file is itself on the ephemeral disk. See docs/ROAD-REPORTS-EVIDENCE.md.
+create table if not exists report_images (
+    report_id     text primary key references road_reports(id) on delete cascade,
+    content_type  text not null check (content_type in ('image/jpeg', 'image/png', 'image/webp')),
+    bytes_blob    blob not null,
+    width         integer not null check (width > 0),
+    height        integer not null check (height > 0),
+    byte_size     integer not null check (byte_size > 0),
+    sha256        text not null,
+    -- Always 1: the pipeline re-encodes from pixels, so EXIF and its embedded GPS are gone.
+    metadata_stripped integer not null default 1 check (metadata_stripped = 1),
+    created_at    text not null
+);
+
+-- Community corroboration. Its purpose is EVIDENCE, never authority: nothing in this table
+-- can change `decision`. The unique constraint is the database-level enforcement of
+-- "prevent repeated voting by the same user on the same report", so a race between two
+-- requests cannot slip a duplicate through.
+create table if not exists report_confirmations (
+    id          integer primary key autoincrement,
+    report_id   text not null references road_reports(id) on delete cascade,
+    user_id     text not null references users(id) on delete cascade,
+    kind        text not null check (kind in ('confirm', 'challenge')),
+    at          text not null,
+    unique (report_id, user_id)
+);
+create index if not exists confirmations_report_idx on report_confirmations (report_id, at);
+
+-- Append-only history for every report. Never updated, never deleted by the application, so
+-- a rejected or obsolete report keeps its audit trail instead of vanishing.
+create table if not exists report_audit (
+    id          integer primary key autoincrement,
+    report_id   text not null,
+    action      text not null,
+    actor_id    text,
+    actor_role  text,
+    from_state  text,
+    to_state    text,
+    detail      text,
+    at          text not null
+);
+create index if not exists report_audit_report_idx on report_audit (report_id, at);
+
+-- Submission throttling, counted in a windowing query rather than by a scheduler.
+create table if not exists report_rate_events (
+    id        integer primary key autoincrement,
+    subject   text not null,
+    kind      text not null,
+    at        text not null
+);
+create index if not exists report_rate_subject_idx on report_rate_events (subject, at);
 """
 
 
@@ -199,7 +327,14 @@ def reset_for_tests() -> None:
     path = db_path()
     if path.exists():
         with connect() as conn:
+            # Child tables first: foreign keys are ON, so a parent dropped ahead of its
+            # children would raise instead of cascading.
             for table in (
+                "report_rate_events",
+                "report_audit",
+                "report_confirmations",
+                "report_images",
+                "road_reports",
                 "audit_log",
                 "sms_rate_events",
                 "sms_messages",

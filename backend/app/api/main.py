@@ -23,7 +23,7 @@ from __future__ import annotations
 import math
 import os
 from datetime import datetime, timedelta, timezone
-from typing import Any, Callable
+from typing import Any, Callable, Mapping
 
 from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi import status as http_status
@@ -182,6 +182,12 @@ from app.api.bulletin_routes import (  # noqa: E402
 )
 from app.ingest.inamhi import ADVERTENCIA_PDF, PORTAL_ALERTAS, PORTAL_BOLETINES, PORTAL_PRONOSTICO  # noqa: E402
 from app.ingest.comparison import GUAYAQUIL_REGION  # noqa: E402
+from app.api.report_routes import (  # noqa: E402
+    admin_reports_router,
+    build_report_overlay,
+    public_router as reports_router,
+)
+from app.api.account_routes import admin_accounts_router  # noqa: E402
 from app.store import init_db as _init_store  # noqa: E402
 
 _init_store()
@@ -189,6 +195,13 @@ _init_store()
 app.include_router(auth_router)
 app.include_router(sms_router)
 app.include_router(admin_router)
+# Community road reports. Every mutation on these routers requires a server-side session, and
+# every admin route requires a role — see app/api/report_routes.py.
+app.include_router(reports_router)
+app.include_router(admin_reports_router)
+# Staff account administration for the console. Every route requires a server-side role, and
+# role grants are capped below the caller's own role — see app/api/account_routes.py.
+app.include_router(admin_accounts_router)
 
 
 # ---------------------------------------------------------------------------
@@ -648,6 +661,74 @@ def load_route_status(
     return load
 
 
+def merge_statuses(
+    base: StatusIndex, overlay: Mapping[int, tuple[str, bool]], now: datetime
+) -> StatusIndex:
+    """Merge report-derived statuses over the base index.
+
+    Used to layer citizen evidence onto seeded/persisted road status, so there is still exactly
+    one index consulted by the router rather than a second parallel source of truth.
+
+    THE MERGE RULE, and why it is not "overlay always wins":
+      * An overlay CLOSURE always wins, because the higher-risk reading must win. If a verified
+        citizen report says the road is blocked and the seed says it is open, serving the seed's
+        "open" would route someone through the closure the citizen just documented.
+      * Otherwise, if the base already has a VERIFIED closure, it stays. A citizen's "passable"
+        report must not silently lift an operator-verified closure — that is exactly the
+        "previously blocked road can become passable only through an authorized status
+        transition" requirement. Lifting a closure is an operator decision, not a vote.
+      * Otherwise the overlay's status applies, since it is newer evidence about the same road.
+
+    `overlay` maps edge id -> (status, verified).
+    """
+    statuses: list[EdgeStatus] = []
+    seen: set[int] = set()
+
+    for edge_id in base.edges_with_records():
+        base_record = base.record_for(edge_id)
+        entry = overlay.get(edge_id)
+        if entry is None or base_record is None:
+            if base_record is not None:
+                statuses.append(base_record)
+            seen.add(edge_id)
+            continue
+
+        new_status, new_verified = entry
+        keep_base = base_record.status == STATUS_CLOSED and new_status != STATUS_CLOSED
+        if keep_base:
+            statuses.append(base_record)
+        else:
+            statuses.append(
+                EdgeStatus(
+                    edge_id=edge_id,
+                    status=new_status,  # type: ignore[arg-type]
+                    set_at=now,
+                    # A stale closure is deliberately NOT verified: it keeps closing the edge
+                    # (see StatusIndex.is_closed) while no longer counting as current evidence,
+                    # which lowers coverage and therefore discourages the router from
+                    # recommending a route over it.
+                    verified=new_verified,
+                )
+            )
+        seen.add(edge_id)
+
+    # Edges the base index has no record for but a report covers. Without this branch, a report
+    # about a road the seed generator happened to skip would be silently ignored.
+    for edge_id, (new_status, new_verified) in overlay.items():
+        if edge_id in seen:
+            continue
+        statuses.append(
+            EdgeStatus(
+                edge_id=edge_id,
+                status=new_status,  # type: ignore[arg-type]
+                set_at=now,
+                verified=new_verified,
+            )
+        )
+
+    return StatusIndex(statuses, now=now, freshness=base.freshness_window())
+
+
 def get_route_status(
     now: datetime = Depends(get_now),
     fetch: FetchFn | None = Depends(get_status_fetch),
@@ -713,6 +794,15 @@ def public_route(
     status = get_route_status(now, fetch, profile)
     load = _LAST_STATUS_LOAD.get("result")
 
+    # Layer citizen-report evidence over the base status. The overlay is merged into the index
+    # the router consults rather than being applied to the response afterwards, so a verified
+    # report actually changes which path is searched — not just what the screen says about it.
+    overlay = build_report_overlay(now)
+    report_overlay_applied = False
+    if overlay is not None and overlay.by_segment:
+        status = merge_statuses(status, overlay.by_segment, now)
+        report_overlay_applied = True
+
     status_source: str = "seed_generator"
     # These three disclosures are MANDATORY on every route response and are never replaced by
     # status-source notes. A regression test caught an earlier version that dropped the
@@ -747,6 +837,11 @@ def public_route(
             status_source = "seed_generator_fallback_no_mapping"
         # Status notes are APPENDED, never substituted: the disclosures above must survive.
         status_notes = list(load.notes) + INVARIANT_NOTES
+
+    # Report notes are appended after the invariant notes so a report cannot displace the
+    # standing disclosure that road status is seed data.
+    if overlay is not None:
+        status_notes = status_notes + list(overlay.notes)
 
     try:
         result = find_routes(
@@ -858,6 +953,12 @@ def public_route(
         status_records_matched=matched,
         status_profile=profile,
         profile_is_demo_fixture=(profile == "demo_clear"),
+        report_overlay_applied=report_overlay_applied,
+        report_segments_affected=(
+            len(overlay.by_segment) if overlay is not None else 0
+        ),
+        report_closures=(overlay.segments_closed if overlay is not None else 0),
+        report_stale_closures=(overlay.stale_closures if overlay is not None else 0),
     )
 
 

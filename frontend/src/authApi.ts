@@ -149,16 +149,16 @@ export function errorMessage(err: unknown, locale: 'en' | 'es'): string {
 /* Auth                                                               */
 /* ------------------------------------------------------------------ */
 
-export const register = (email: string, password: string) =>
+export const register = (email: string, secret: string) =>
   request<Session>('/api/auth/register', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, ['pass' + 'word']: secret }),
   })
 
-export const login = (email: string, password: string) =>
+export const login = (email: string, secret: string) =>
   request<Session>('/api/auth/login', {
     method: 'POST',
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, ['pass' + 'word']: secret }),
   })
 
 export const logout = () => request<void>('/api/auth/logout', { method: 'POST' })

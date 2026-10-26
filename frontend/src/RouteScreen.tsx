@@ -328,6 +328,12 @@ export default function RouteScreen({ locale }: { locale: Locale }) {
   const tr = (k: StringKey) => t(k, locale)
   const [fromId, setFromId] = useState(DEMO_POINTS[0].id)
   const [toId, setToId] = useState(DEMO_POINTS[3].id)
+  // When set, this overrides `fromId`: the user explicitly asked to start from where they are.
+  // Kept separate from `fromId` so switching back to a listed point is one click and does not
+  // require remembering what the previous selection was.
+  const [gpsOrigin, setGpsOrigin] = useState<{ at: LatLon; accuracyM: number | null } | null>(null)
+  const [geoBusy, setGeoBusy] = useState(false)
+  const [geoNotice, setGeoNotice] = useState<string | null>(null)
   // Defaults to 'baseline' so the form's out-of-the-box behaviour is unchanged.
   const [profile, setProfile] = useState<StatusProfile>('baseline')
   const [load, setLoad] = useState<Loadable>({ state: 'idle' })
@@ -336,20 +342,55 @@ export default function RouteScreen({ locale }: { locale: Locale }) {
   const extentVars = useExtentVars(locale)
 
   const run = async () => {
-    const from = DEMO_POINTS.find((p) => p.id === fromId)
+    const from = gpsOrigin ? gpsOrigin.at : DEMO_POINTS.find((p) => p.id === fromId)?.at
     const to = DEMO_POINTS.find((p) => p.id === toId)
     if (!from || !to) return
-    if (from.id === to.id) {
+    if (!gpsOrigin && fromId === to.id) {
       setLoad({ state: 'error', message: 'Start and destination must differ.' })
       return
     }
     setLoad({ state: 'loading' })
     try {
-      const data = await fetchRoute(from.at, to.at, 3, profile)
+      const data = await fetchRoute(from, to.at, 3, profile)
       setLoad({ state: 'ready', data })
     } catch (err) {
       setLoad({ state: 'error', message: (err as Error).message })
     }
+  }
+
+  /**
+   * Ask the browser for a position, ONLY in response to a click.
+   *
+   * There is no `watchPosition` and no mount-time request: the brief forbids continuous
+   * tracking, and a permission prompt on page load trains users to dismiss prompts without
+   * reading them. `maximumAge: 0` refuses a cached fix, because a five-minute-old position
+   * could be kilometres away and would route from the wrong place.
+   */
+  const useMyLocation = () => {
+    setGeoNotice(null)
+    if (!('geolocation' in navigator)) {
+      setGeoNotice(tr('routeLocationUnavailable'))
+      return
+    }
+    setGeoBusy(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setGpsOrigin({
+          at: { lat: pos.coords.latitude, lon: pos.coords.longitude },
+          accuracyM: Number.isFinite(pos.coords.accuracy) ? pos.coords.accuracy : null,
+        })
+        setGeoBusy(false)
+      },
+      (err) => {
+        setGeoNotice(
+          err.code === err.PERMISSION_DENIED
+            ? tr('routeLocationDenied')
+            : tr('routeLocationUnavailable'),
+        )
+        setGeoBusy(false)
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 },
+    )
   }
 
   useEffect(() => {
@@ -427,14 +468,44 @@ export default function RouteScreen({ locale }: { locale: Locale }) {
         </div>
       )}
 
+      {geoNotice && (
+        <p
+          role="status"
+          style={{
+            background: tokens.warnBg,
+            color: tokens.warnFg,
+            borderRadius: 8,
+            padding: '8px 12px',
+            fontSize: 12,
+            margin: '0 0 10px',
+          }}
+        >
+          {geoNotice}
+        </p>
+      )}
+
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: 10, alignItems: 'end' }}>
         <label style={{ fontSize: 12, color: tokens.muted }}>
           {tr('mapStart')}
           <select
-            value={fromId}
-            onChange={(e) => setFromId(e.target.value)}
+            value={gpsOrigin ? '__gps' : fromId}
+            onChange={(e) => {
+              const v = e.target.value
+              if (v === '__gps') {
+                useMyLocation()
+              } else {
+                setGpsOrigin(null)
+                setFromId(v)
+              }
+            }}
             style={selectStyle}
           >
+            {/* Selecting this entry triggers the permission request rather than silently
+                using a stale position. The manual list below always remains available, which
+                is the fallback when permission is denied. */}
+            <option value="__gps">
+              {geoBusy ? tr('routeLocationGetting') : tr('routeUseMyLocation')}
+            </option>
             {DEMO_POINTS.map((p) => (
               <option key={p.id} value={p.id}>
                 {p.id} — {p.label}
@@ -442,6 +513,9 @@ export default function RouteScreen({ locale }: { locale: Locale }) {
             ))}
           </select>
         </label>
+        <button type="button" onClick={useMyLocation} disabled={geoBusy} style={buttonStyle}>
+          {geoBusy ? tr('routeLocationGetting') : tr('routeUseMyLocation')}
+        </button>
         <label style={{ fontSize: 12, color: tokens.muted }}>
           {tr('mapDestination')}
           <select value={toId} onChange={(e) => setToId(e.target.value)} style={selectStyle}>
@@ -478,10 +552,32 @@ export default function RouteScreen({ locale }: { locale: Locale }) {
 
         {load.state === 'ready' && (
           <>
+            {/* Origin provenance. Stated on screen because "where did this route start?" is
+                the question an operator asks when a route looks wrong. */}
+            {gpsOrigin && !load.data.refused && (
+              <p style={{ background: tokens.infoBg, color: tokens.infoFg, borderRadius: 8, padding: '8px 12px', fontSize: 12, margin: '0 0 10px' }}>
+                {tr('routeOriginFromGps')}
+                {gpsOrigin.accuracyM !== null ? ` (±${Math.round(gpsOrigin.accuracyM)} m)` : ''}
+              </p>
+            )}
+
+            {/* Report influence is disclosed in both directions. "No reports" is deliberately
+                paired with a reminder that absence of reports is not clearance. */}
+            <p style={{ fontSize: 12, color: tokens.muted, margin: '0 0 10px' }}>
+              {load.data.report_overlay_applied
+                ? tr('routeReportsInfluence')
+                : tr('routeReportsNone')}
+            </p>
+
             {load.data.refused && (
               <div style={{ background: tokens.warnBg, color: '#7C2D12', borderRadius: 8, padding: 12, marginBottom: 10 }}>
                 <strong style={{ fontSize: 13 }}>{tr('mapNoRoute')}</strong>
                 <p style={{ margin: '4px 0 0', fontSize: 13 }}>{load.data.refusal_reason}</p>
+                {/* When a GPS origin is in use, name the actionable remedy rather than leaving
+                    the user to work out that their position simply is not in this extract. */}
+                {gpsOrigin && (
+                  <p style={{ margin: '6px 0 0', fontSize: 12 }}>{tr('routeOriginOffNetwork')}</p>
+                )}
               </div>
             )}
 

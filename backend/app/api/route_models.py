@@ -125,3 +125,27 @@ class RouteResponseOut(BaseModel):
         description="True when the profile exists purely to make a demonstration legible. Its "
         "closures are synthetic demo data, never real reports.",
     )
+
+    # Community-report overlay. Reported separately from `status_profile` because the two are
+    # different kinds of evidence: the profile is seed data, the overlay is citizen reports.
+    # Merging them into one field would hide which one influenced the route.
+    report_overlay_applied: bool = Field(
+        default=False,
+        description="True when citizen road reports changed the road status used for this "
+        "search. False means reports were absent or affected no segment, NOT that the roads "
+        "are confirmed clear.",
+    )
+    report_segments_affected: int = Field(
+        default=0,
+        description="How many road segments had their status set by citizen reports.",
+    )
+    report_closures: int = Field(
+        default=0,
+        description="Segments closed by a verified citizen report. These are excluded from "
+        "phase-1 search like any other closure.",
+    )
+    report_stale_closures: int = Field(
+        default=0,
+        description="Subset of `report_closures` whose evidence has expired. Still avoided, "
+        "but no longer current verification.",
+    )
