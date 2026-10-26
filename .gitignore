@@ -1,0 +1,36 @@
+# Secrets never enter the repository.
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+
+# Node
+node_modules/
+dist/
+*.tsbuildinfo
+
+# Supabase local state
+supabase/.temp/
+supabase/.branches/
+
+# OS / editor
+.DS_Store
+*.swp
+
+# Test/coverage output
+.coverage
+.coverage.*
+htmlcov/
+*.sqlite
+*.db
+
+# Local tooling / editor scratch
+.vscode/
+.idea/
+/tmp/
