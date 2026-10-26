@@ -29,7 +29,7 @@ No interface, stack, or requirement has been approved yet.
 | 2 | Admin Interface | **APPROVED 2026-10-25** (`docs/STAGE-2-ADMIN-INTERFACE.md`) |
 | 3 | Technology Stack and Architecture | **APPROVED 2026-10-26** (`docs/STAGE-3-ARCHITECTURE.md`; digest: `docs/STAGE-3-DECISION-SUMMARY.md`; decisions D23–D28; ledger: `docs/EVIDENCE-STATUS.md`) |
 | 4 | Other Requirements and Implementation Plan | **APPROVED 2026-10-26** — with R-17 = (a) as **D29** and a **one-day constraint** (D30); one-day schedule in §16 (`docs/STAGE-4-REQUIREMENTS-PLAN.md`) |
-| 5 | Implementation | **IN PROGRESS 2026-10-26** — **M0–M12 done** (464 tests w/ PG; demo selector in UI, N-14 closed); N-5 open |
+| 5 | Implementation | **IN PROGRESS 2026-10-26** — **M0–M12 done** (510 tests w/ PG; Admin read-only panel added); commit `3dda617` on `main`, **push blocked (no credentials)**; N-5 open |
 
 ---
 
@@ -104,7 +104,8 @@ fallback could not be executed** — recorded, not glossed.
 | Block 10 — operationalise OSM pipeline, widen extract, one-ways | **COMPLETE 2026-10-26 — PASSED (A–D)**; N-10/N-11/N-12 closed, N-13 partial; **browser check (Part E) NOT done — N-5 open**; evidence: `docs/M10-EVIDENCE.md` |
 | Block 11 — demo status tuning (N-16), repo load step (N-14) | **PARTIAL — M11 done**; `demo_clear` fixture added (N-16 mitigated); N-14 still open; **N-5 still open (no browser)**; evidence: `docs/M11-EVIDENCE.md` |
 | Block 12 — demo selector (M12 Part A), N-14 loader, visual checklist | **DONE — M12**; N-14 closed (idempotent, proven 3x on PG 16.2); **N-5 open**; evidence: `docs/M12-EVIDENCE.md` |
-| Block 13 — N-5 manual checklist, or N-13 turn restrictions | NEXT — not started |
+| Block 13 — frontend polish + Admin panel (final M12) | **DONE** — commit `3dda617`; 510 tests; evidence: `docs/M12-FINAL-EVIDENCE.md` |
+| Block 14 — push `main` with credentials, or N-13 turn restrictions | NEXT |
 
 ---
 
