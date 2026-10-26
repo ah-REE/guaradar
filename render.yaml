@@ -1,0 +1,71 @@
+# Render blueprint for the Guaradar API.
+#
+# DEPLOYMENT SHAPE: the frontend is on Vercel and proxies /api to this service. The browser
+# therefore only ever talks to ONE origin (the Vercel domain), which is why CORS does not need
+# widening and why the session cookie stays same-origin. Widening CORS instead would have meant
+# allow_credentials=True with an explicit origin list — a real weakening for no benefit.
+#
+# THE ONE THING TO CHANGE BEFORE DEPLOYING
+#   Set `corsOrigins` to your actual Vercel domain(s). The value below is a placeholder; a wrong
+#   value does not break the proxied path (the proxy makes requests server-side, and Render sees
+#   no browser Origin header) but it does break any direct cross-origin caller.
+#
+# DURABILITY — READ THIS
+#   The runtime database is SQLite at $GUARADAR_DB_PATH. On Render's free tier the disk is
+#   EPHEMERAL: reports, uploaded images and accounts are lost on restart, spin-down or redeploy.
+#   `render.yaml` sets GUARADAR_DB_PATH to /tmp so the failure is honest rather than looking like
+#   a persistent data directory. To make data survive, provision managed PostgreSQL, set
+#   GUARADAR_PG_DSN, and apply supabase/migrations/0007_road_reports.sql — none of which has been
+#   executed or tested yet.
+
+services:
+  - type: web
+    name: guaradar-api
+    runtime: python
+    plan: free
+    region: oregon
+    # The backend lives in ./backend, and its package imports are rooted there (`from app...`).
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    # --workers 1 is deliberate: the SQLite store is a single file on a single node, and the
+    # in-process login throttle is per-process. Multiple workers would multiply the effective
+    # rate limit. Revisit only alongside the PostgreSQL migration.
+    startCommand: uvicorn app.api.main:app --host 0.0.0.0 --port $PORT --workers 1
+    healthCheckPath: /api/health
+    envVars:
+      # --- REQUIRED: your Vercel deployment origin(s) -----------------------------
+      - key: GUARADAR_CORS_ORIGINS
+        value: https://your-project.vercel.app
+
+      # --- REQUIRED for an https deployment --------------------------------------
+      # Without this the session cookie is non-Secure and browsers refuse it on https, so
+      # sign-in appears to succeed and then silently does not stick.
+      - key: GUARADAR_COOKIE_SECURE
+        value: "1"
+
+      # --- Storage: ephemeral on the free plan. See the note above. --------------
+      - key: GUARADAR_DB_PATH
+        value: /tmp/guaradar.db
+
+      # --- Upstream data sources -------------------------------------------------
+      - key: OPEN_METEO_BASE_URL
+        value: https://api.open-meteo.com/v1
+      - key: GEOGLOWS_BASE_URL
+        value: https://geoglows.ecmwf.int/api/v2
+      - key: GEOGLOWS_RIVER_ID
+        value: "670068009"
+
+      # --- Set these in the dashboard, never in this file ------------------------
+      # sync: false means "prompt me in the UI", so no secret is committed here.
+      - key: GUARADAR_PG_DSN
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: SUPABASE_SERVICE_ROLE_KEY
+        sync: false
+      - key: SENTRY_DSN
+        sync: false
+      - key: OPENTOPOGRAPHY_API_KEY
+        sync: false

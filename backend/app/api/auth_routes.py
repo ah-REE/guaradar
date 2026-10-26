@@ -21,6 +21,7 @@ IDENTITY RESOLUTION
 
 from __future__ import annotations
 
+import os
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query, Response
@@ -33,6 +34,54 @@ from app.sms.gateway import SmsGateway, describe_config
 from app.sms.service import SmsError
 
 SESSION_COOKIE = "guaradar_session"
+
+# ---------------------------------------------------------------------------
+# Cookie flags
+# ---------------------------------------------------------------------------
+#
+# WHY THIS IS CONFIGURABLE
+#   The flag was hardcoded to `secure=False`, which is correct for `http://localhost` and WRONG
+#   for any HTTPS deployment: a browser refuses to store a non-Secure cookie on an https origin
+#   in several configurations, and accepting one over plain HTTP invites session theft.
+#
+#   The default stays insecure ON PURPOSE, so local development over http keeps working with no
+#   setup. A deployment sets GUARADAR_COOKIE_SECURE=1 and gets a Secure cookie; the value is
+#   parsed strictly so a typo cannot silently leave production insecure.
+#
+#   SameSite stays `Lax`. That is what makes the cookie survive the Vercel -> Render proxy hop
+#   (the browser only ever sees one origin) while still blocking the simple cross-site form POST.
+
+
+def _env_flag(name: str, default: bool) -> bool:
+    raw = os.environ.get(name)
+    if raw is None or raw.strip() == "":
+        return default
+    value = raw.strip().lower()
+    if value in ("1", "true", "yes", "on"):
+        return True
+    if value in ("0", "false", "no", "off"):
+        return False
+    # Fail loudly: a malformed flag must not quietly leave cookies insecure in production.
+    raise RuntimeError(f"{name} must be one of 1/0/true/false/yes/no/on/off, got {raw!r}")
+
+
+COOKIE_SECURE = _env_flag("GUARADAR_COOKIE_SECURE", default=False)
+
+
+def set_session_cookie(response: Response, token: str) -> None:
+    """Attach the session cookie with the deployment's flags.
+
+    One helper so the two call sites cannot drift: a login that set a Secure cookie and a
+    register that did not would be a confusing, intermittent bug.
+    """
+    response.set_cookie(
+        SESSION_COOKIE,
+        token,
+        httponly=True,
+        samesite="lax",
+        secure=COOKIE_SECURE,
+        path="/",
+    )
 
 auth_router = APIRouter(prefix="/api/auth", tags=["auth"])
 sms_router = APIRouter(prefix="/api/sms", tags=["sms"])
@@ -177,9 +226,7 @@ def register(payload: RegisterIn, response: Response) -> MeOut:
     except AuthError as exc:
         raise _auth_http(exc) from exc
     auth_svc.audit(signed, "auth.register", subject=signed.id)
-    response.set_cookie(
-        SESSION_COOKIE, token, httponly=True, samesite="lax", secure=False, path="/"
-    )
+    set_session_cookie(response, token)
     return _me(signed)
 
 
@@ -190,9 +237,7 @@ def login(payload: LoginIn, response: Response) -> MeOut:
     except AuthError as exc:
         raise _auth_http(exc) from exc
     auth_svc.audit(user, "auth.login", subject=user.id)
-    response.set_cookie(
-        SESSION_COOKIE, token, httponly=True, samesite="lax", secure=False, path="/"
-    )
+    set_session_cookie(response, token)
     return _me(user)
 
 

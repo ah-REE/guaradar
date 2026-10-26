@@ -149,17 +149,45 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
-# CORS is restricted to the local dev frontend. A wildcard here would let any page read the
-# responses, which is unnecessary for a demo and sets a bad precedent.
+# CORS is an explicit allow-list, never a wildcard: a wildcard would let any page read the
+# responses, which is unnecessary here and sets a bad precedent.
+#
+# WHY THIS IS CONFIGURABLE NOW
+#   The list was hardcoded to the two localhost dev origins. That is correct for development and
+#   useless for a deployment, where the frontend has a real domain. `GUARADAR_CORS_ORIGINS` adds
+#   origins (comma-separated); the localhost entries stay so a deployed API still works from a
+#   developer's machine.
+#
+# WHY `allow_credentials` STAYS FALSE
+#   The intended deployment puts the frontend on Vercel and proxies /api to this service, so the
+#   BROWSER only ever sees one origin and cookies are same-origin. Widening CORS with
+#   `allow_credentials=True` would be a real weakening — it lets a cross-site page send the
+#   session cookie — and buys nothing when the proxy is in place. If you later serve the frontend
+#   from a different origin WITHOUT a proxy, the cookie path stops working, and that is the honest
+#   signal that the shape has changed rather than something to paper over by loosening this.
+_LOCAL_DEV_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"]
+
+
+def _cors_origins() -> list[str]:
+    extra = os.environ.get("GUARADAR_CORS_ORIGINS", "")
+    origins = list(_LOCAL_DEV_ORIGINS)
+    for raw in extra.split(","):
+        origin = raw.strip().rstrip("/")
+        if not origin:
+            continue
+        if origin == "*":
+            # Refused loudly. A wildcard with an auth cookie is the classic misconfiguration.
+            raise RuntimeError(
+                "GUARADAR_CORS_ORIGINS must not contain '*'; list explicit origins"
+            )
+        if origin not in origins:
+            origins.append(origin)
+    return origins
+
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",
-        "http://127.0.0.1:5173",
-    ],
-    # The browser talks to the Vite dev server, which proxies /api, so auth cookies are
-    # SAME-ORIGIN and CORS is not involved in the credential path at all. Credentials stay
-    # disallowed cross-origin, which removes a class of attack rather than enabling one.
+    allow_origins=_cors_origins(),
     allow_credentials=False,
     allow_methods=["GET", "POST", "DELETE", "OPTIONS"],
     allow_headers=["*"],
